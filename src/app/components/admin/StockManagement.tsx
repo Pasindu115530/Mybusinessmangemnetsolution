@@ -8,11 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
+import { Textarea } from '../ui/textarea';
+import { Switch } from '../ui/switch';
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   AlertCircle,
   Package,
   TrendingUp,
@@ -22,53 +24,53 @@ import {
 } from 'lucide-react';
 
 const stockItems = [
-  { 
-    id: 1, 
-    name: 'Product A - Electronics', 
+  {
+    id: 1,
+    name: 'Product A - Electronics',
     category: 'Electronics',
-    quantity: 45, 
-    cost: 250, 
-    sellingPrice: 350, 
+    quantity: 45,
+    cost: 250,
+    sellingPrice: 350,
     status: 'low',
     lastUpdated: '2024-01-15'
   },
-  { 
-    id: 2, 
-    name: 'Product B - Furniture', 
+  {
+    id: 2,
+    name: 'Product B - Furniture',
     category: 'Furniture',
-    quantity: 150, 
-    cost: 180, 
-    sellingPrice: 280, 
+    quantity: 150,
+    cost: 180,
+    sellingPrice: 280,
     status: 'in-stock',
     lastUpdated: '2024-01-14'
   },
-  { 
-    id: 3, 
-    name: 'Product C - Textiles', 
+  {
+    id: 3,
+    name: 'Product C - Textiles',
     category: 'Textiles',
-    quantity: 23, 
-    cost: 45, 
-    sellingPrice: 75, 
+    quantity: 23,
+    cost: 45,
+    sellingPrice: 75,
     status: 'critical',
     lastUpdated: '2024-01-16'
   },
-  { 
-    id: 4, 
-    name: 'Product D - Electronics', 
+  {
+    id: 4,
+    name: 'Product D - Electronics',
     category: 'Electronics',
-    quantity: 320, 
-    cost: 85, 
-    sellingPrice: 125, 
+    quantity: 320,
+    cost: 85,
+    sellingPrice: 125,
     status: 'in-stock',
     lastUpdated: '2024-01-13'
   },
-  { 
-    id: 5, 
-    name: 'Product E - Hardware', 
+  {
+    id: 5,
+    name: 'Product E - Hardware',
     category: 'Hardware',
-    quantity: 78, 
-    cost: 120, 
-    sellingPrice: 185, 
+    quantity: 78,
+    cost: 120,
+    sellingPrice: 185,
     status: 'low',
     lastUpdated: '2024-01-15'
   },
@@ -119,20 +121,59 @@ export function StockManagement() {
                     <Label>Item Name</Label>
                     <Input placeholder="Enter item name" className="mt-1" />
                   </div>
-                  <div>
-                    <Label>Category</Label>
-                    <Select>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="electronics">Electronics</SelectItem>
-                        <SelectItem value="furniture">Furniture</SelectItem>
-                        <SelectItem value="textiles">Textiles</SelectItem>
-                        <SelectItem value="hardware">Hardware</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Category</Label>
+                      <Select>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="electronics">Electronics</SelectItem>
+                          <SelectItem value="furniture">Furniture</SelectItem>
+                          <SelectItem value="textiles">Textiles</SelectItem>
+                          <SelectItem value="hardware">Hardware</SelectItem>
+                          <SelectItem value="clothing">Clothing</SelectItem>
+                          <SelectItem value="food">Food</SelectItem>
+                          <SelectItem value="beverages">Beverages</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Brand</Label>
+                      <Input placeholder="Enter brand" className="mt-1" />
+                    </div>
                   </div>
+
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea placeholder="Enter item description" className="mt-1" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Unit of Measure</Label>
+                      <Select defaultValue="Pieces">
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Units">Units</SelectItem>
+                          <SelectItem value="Kilograms">Kilograms</SelectItem>
+                          <SelectItem value="Meters">Meters</SelectItem>
+                          <SelectItem value="Boxes">Boxes</SelectItem>
+                          <SelectItem value="Pieces">Pieces</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Warehouse Location</Label>
+                      <Input placeholder="e.g. A-12-03" className="mt-1" />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Quantity</Label>
@@ -143,6 +184,7 @@ export function StockManagement() {
                       <Input type="number" placeholder="0" className="mt-1" />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Cost Price</Label>
@@ -153,6 +195,12 @@ export function StockManagement() {
                       <Input type="number" placeholder="0.00" className="mt-1" />
                     </div>
                   </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch id="discontinued" />
+                    <Label htmlFor="discontinued">Is Discontinued</Label>
+                  </div>
+
                   <Button className="w-full mt-2">Add Item</Button>
                 </div>
               </DialogContent>
@@ -285,8 +333,8 @@ export function StockManagement() {
                               item.status === 'in-stock'
                                 ? 'bg-green-100 text-green-700 border-green-200'
                                 : item.status === 'low'
-                                ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                                : 'bg-red-100 text-red-700 border-red-200'
+                                  ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                  : 'bg-red-100 text-red-700 border-red-200'
                             }
                           >
                             {item.status === 'in-stock' && 'In Stock'}
