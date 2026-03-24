@@ -1,6 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useState } from 'react';
-import { RoleSwitcher } from './components/RoleSwitcher';
 
 // Auth Components
 import { CompanyHome } from './components/auth/CompanyHome';
@@ -8,6 +7,7 @@ import { CustomerLogin } from './components/auth/CustomerLogin';
 import { CustomerRegister } from './components/auth/CustomerRegister';
 import { SupplierLogin } from './components/auth/SupplierLogin';
 import { SupplierRegister } from './components/auth/SupplierRegister';
+import { AdminLogin } from './components/auth/AdminLogin';
 
 // Admin Components
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -54,76 +54,79 @@ import { OrderConfirmation } from './components/customer/OrderConfirmation';
 
 export type UserRole = 'admin' | 'supplier' | 'customer';
 
-export default function App() {
-  const [currentRole, setCurrentRole] = useState<UserRole>('admin');
+const ProtectedRoute = ({ allowedRole }: { allowedRole: UserRole }) => {
+  const role = localStorage.getItem('userRole');
+  if (role !== allowedRole) {
+    if (allowedRole === 'admin') return <Navigate to="/admin-login" replace />;
+    if (allowedRole === 'supplier') return <Navigate to="/supplier-login" replace />;
+    if (allowedRole === 'customer') return <Navigate to="/customer-login" replace />;
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+};
 
+export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50">
-        <RoleSwitcher currentRole={currentRole} onRoleChange={setCurrentRole} />
         
         <Routes>
           {/* Public Auth Routes */}
-          <Route path="/welcome" element={<CompanyHome />} />
+          <Route path="/" element={<CompanyHome />} />
           <Route path="/customer-login" element={<CustomerLogin />} />
           <Route path="/customer-register" element={<CustomerRegister />} />
           <Route path="/supplier-login" element={<SupplierLogin />} />
           <Route path="/supplier-register" element={<SupplierRegister />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           
           {/* Admin Routes */}
-          {currentRole === 'admin' && (
-            <>
-              <Route path="/" element={<AdminDashboard />} />
-              <Route path="/stock" element={<StockManagement />} />
-              <Route path="/finance" element={<FinanceManagement />} />
-              <Route path="/payments" element={<PaymentsTransactions />} />
-              <Route path="/customers" element={<CustomerManagement />} />
-              <Route path="/customer-requests" element={<CustomerRequests />} />
-              <Route path="/customer-quotations" element={<CustomerQuotations />} />
-              <Route path="/customer-orders" element={<AdminCustomerOrders />} />
-              <Route path="/customer-delivery" element={<CustomerDeliveryTracking />} />
-              <Route path="/customer-invoices" element={<CustomerInvoicesAdmin />} />
-              <Route path="/customer-payments" element={<CustomerPaymentsAdmin />} />
-              <Route path="/suppliers" element={<SupplierManagement />} />
-              <Route path="/supplier-requirements" element={<SupplierRequests />} />
-              <Route path="/supplier-quotations" element={<SupplierQuotationsAdmin />} />
-              <Route path="/purchase-orders" element={<PurchaseOrders />} />
-              <Route path="/supplier-delivery" element={<SupplierDeliveryTracking />} />
-              <Route path="/supplier-invoices" element={<SupplierInvoicesAdmin />} />
-              <Route path="/supplier-payments" element={<SupplierPaymentsAdmin />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/request-quotation" element={<RequestQuotation />} />
-              <Route path="/create-quotation" element={<AdminCreateQuotation />} />
-            </>
-          )}
+          <Route element={<ProtectedRoute allowedRole="admin" />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/stock" element={<StockManagement />} />
+            <Route path="/finance" element={<FinanceManagement />} />
+            <Route path="/payments" element={<PaymentsTransactions />} />
+            <Route path="/customers" element={<CustomerManagement />} />
+            <Route path="/customer-requests" element={<CustomerRequests />} />
+            <Route path="/customer-quotations" element={<CustomerQuotations />} />
+            <Route path="/customer-orders" element={<AdminCustomerOrders />} />
+            <Route path="/customer-delivery" element={<CustomerDeliveryTracking />} />
+            <Route path="/customer-invoices" element={<CustomerInvoicesAdmin />} />
+            <Route path="/customer-payments" element={<CustomerPaymentsAdmin />} />
+            <Route path="/suppliers" element={<SupplierManagement />} />
+            <Route path="/supplier-requirements" element={<SupplierRequests />} />
+            <Route path="/supplier-quotations" element={<SupplierQuotationsAdmin />} />
+            <Route path="/purchase-orders" element={<PurchaseOrders />} />
+            <Route path="/supplier-delivery" element={<SupplierDeliveryTracking />} />
+            <Route path="/supplier-invoices" element={<SupplierInvoicesAdmin />} />
+            <Route path="/supplier-payments" element={<SupplierPaymentsAdmin />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/request-quotation" element={<RequestQuotation />} />
+            <Route path="/create-quotation" element={<AdminCreateQuotation />} />
+          </Route>
           
           {/* Supplier Routes */}
-          {currentRole === 'supplier' && (
-            <>
-              <Route path="/" element={<SupplierDashboard />} />
-              <Route path="/requirements" element={<CustomerRequirements />} />
-              <Route path="/create-quotation" element={<QuotationCreation />} />
-              <Route path="/quotation-status" element={<QuotationStatus />} />
-              <Route path="/orders" element={<SupplierOrders />} />
-              <Route path="/delivery" element={<DeliveryDispatch />} />
-              <Route path="/invoices" element={<InvoiceSubmission />} />
-              <Route path="/payments" element={<PaymentStatus />} />
-            </>
-          )}
+          <Route element={<ProtectedRoute allowedRole="supplier" />}>
+            <Route path="/supplier" element={<SupplierDashboard />} />
+            <Route path="/supplier/requirements" element={<CustomerRequirements />} />
+            <Route path="/supplier/create-quotation" element={<QuotationCreation />} />
+            <Route path="/supplier/quotation-status" element={<QuotationStatus />} />
+            <Route path="/supplier/orders" element={<SupplierOrders />} />
+            <Route path="/supplier/delivery" element={<DeliveryDispatch />} />
+            <Route path="/supplier/invoices" element={<InvoiceSubmission />} />
+            <Route path="/supplier/payments" element={<PaymentStatus />} />
+          </Route>
           
           {/* Customer Routes */}
-          {currentRole === 'customer' && (
-            <>
-              <Route path="/" element={<CustomerDashboard />} />
-              <Route path="/send-requirements" element={<SendRequirements />} />
-              <Route path="/quotations" element={<ViewQuotations />} />
-              <Route path="/orders" element={<CustomerOrders />} />
-              <Route path="/delivery-tracking" element={<DeliveryTracking />} />
-              <Route path="/invoices" element={<CustomerInvoices />} />
-              <Route path="/payments" element={<CustomerPayment />} />
-              <Route path="/order-confirmation" element={<OrderConfirmation />} />
-            </>
-          )}
+          <Route element={<ProtectedRoute allowedRole="customer" />}>
+            <Route path="/customer" element={<CustomerDashboard />} />
+            <Route path="/customer/send-requirements" element={<SendRequirements />} />
+            <Route path="/customer/quotations" element={<ViewQuotations />} />
+            <Route path="/customer/orders" element={<CustomerOrders />} />
+            <Route path="/customer/delivery-tracking" element={<DeliveryTracking />} />
+            <Route path="/customer/invoices" element={<CustomerInvoices />} />
+            <Route path="/customer/payments" element={<CustomerPayment />} />
+            <Route path="/customer/order-confirmation" element={<OrderConfirmation />} />
+          </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

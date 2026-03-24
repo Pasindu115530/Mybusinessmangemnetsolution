@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Checkbox } from '../ui/checkbox';
-import { Users, ArrowLeft, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Users, ArrowLeft, Mail, Lock, AlertCircle } from 'lucide-react';
 
 export function CustomerLogin() {
   const navigate = useNavigate();
@@ -15,31 +15,49 @@ export function CustomerLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // handleLogin function එක component එක ඇතුළත නිවැරදිව සකස් කිරීම
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Basic validation
-    if (!email || !password) {
-      setError('Please enter both email and password');
-      setLoading(false);
-      return;
-    }
+    try {
+      // ඔබේ Backend API URL එක මෙතැනට ඇතුළත් කරන්න
+      const response = await fetch("http://localhost:5900/api/users/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address');
-      setLoading(false);
-      return;
-    }
+      const data = await response.json();
 
-    // Simulate login (replace with actual authentication)
-    setTimeout(() => {
+      if (response.ok) {
+        // 1. Token එක සහ මුළු පරිශීලක දත්තම සුරැකීම
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userProfile", JSON.stringify(data.customer || data.user));
+        localStorage.setItem("userRole", data.user.role.toLowerCase());
+        
+        // 2. Relationship සඳහා customID එක වෙනම සුරැකීම
+        // Backend එකෙන් එවන්නේ customID ද customerId ද යන්න මත මෙය වෙනස් විය හැක
+        const userId = data.customer?.customerId || data.user?.customID;
+        if (userId) {
+          localStorage.setItem("customID", userId);
+        }
+
+        console.log("Login Success!");
+        
+        // 3. සාර්ථක වූ පසු Dashboard එකට යොමු කිරීම
+        // window.location.href වෙනුවට navigate පාවිච්චි කිරීම වඩාත් සුදුසුයි
+        navigate("/customer"); 
+      } else {
+        setError(data.message || "Login failed. Please check your credentials.");
+      }
+    } catch (err) {
+      console.error("Login Error:", err);
+      setError("Server error. Please try again later.");
+    } finally {
       setLoading(false);
-      // Navigate to customer dashboard
-      navigate('/');
-      window.location.reload(); // To trigger role change
-    }, 1000);
+    }
   };
 
   return (
@@ -54,7 +72,7 @@ export function CustomerLogin() {
         {/* Back Button */}
         <Button
           variant="ghost"
-          onClick={() => navigate('/welcome')}
+          onClick={() => navigate('/')}
           className="mb-6 text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -63,7 +81,6 @@ export function CustomerLogin() {
 
         {/* Login Card */}
         <Card className="border-0 shadow-2xl overflow-hidden">
-          {/* Header with Gradient */}
           <CardHeader className="bg-gradient-to-r from-yellow-500 to-amber-600 text-white p-8 text-center">
             <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-white" />
@@ -73,7 +90,7 @@ export function CustomerLogin() {
           </CardHeader>
 
           <CardContent className="p-8">
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Message */}
               {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
@@ -92,6 +109,7 @@ export function CustomerLogin() {
                   <Input
                     id="email"
                     type="email"
+                    required
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -108,6 +126,7 @@ export function CustomerLogin() {
                   <Input
                     id="password"
                     type="password"
+                    required
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -123,13 +142,13 @@ export function CustomerLogin() {
                     id="remember"
                     checked={rememberMe}
                     onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                    className="border-slate-300"
+                    className="border-slate-300 data-[state=checked]:bg-yellow-500"
                   />
                   <Label htmlFor="remember" className="text-sm text-slate-600 cursor-pointer">
                     Remember me
                   </Label>
                 </div>
-                <Link to="/forgot-password" className="text-sm text-yellow-600 hover:text-yellow-700">
+                <Link to="/forgot-password" className="text-sm text-yellow-600 hover:text-yellow-700 font-medium">
                   Forgot password?
                 </Link>
               </div>
@@ -143,7 +162,7 @@ export function CustomerLogin() {
                 {loading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Logging in...
+                    <span>Logging in...</span>
                   </div>
                 ) : (
                   'Login to Customer Portal'
@@ -167,7 +186,7 @@ export function CustomerLogin() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-800"
                   >
                     Register as Customer
                   </Button>
@@ -179,7 +198,7 @@ export function CustomerLogin() {
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-600 mt-6">
-          By logging in, you agree to our Terms of Service and Privacy Policy
+          By logging in, you agree to our <span className="underline cursor-pointer">Terms of Service</span> and <span className="underline cursor-pointer">Privacy Policy</span>
         </p>
       </div>
     </div>

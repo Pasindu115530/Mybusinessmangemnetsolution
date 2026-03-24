@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard,
   Package,
@@ -16,7 +16,8 @@ import {
   Send,
   ShoppingBag,
   Receipt,
-  Home
+  Home,
+  LogOut
 } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -32,7 +33,7 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Stock Management', href: '/stock', icon: Package },
   { name: 'Finance & Funds', href: '/finance', icon: DollarSign },
   { name: 'Payments', href: '/payments', icon: CreditCard },
@@ -68,7 +69,13 @@ const navigation: NavItem[] = [
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/admin-login');
+  };
   const [collapsedSidebar, setCollapsedSidebar] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>(['Customers', 'Suppliers']);
 
@@ -295,6 +302,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center text-white">
                 A
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Logout</span>
+              </Button>
             </div>
           </div>
         </div>

@@ -8,7 +8,8 @@ import {
   Truck,
   Receipt,
   CreditCard,
-  CheckCircle
+  CheckCircle,
+  LogOut
 } from 'lucide-react';
 
 interface CustomerLayoutProps {
@@ -16,24 +17,36 @@ interface CustomerLayoutProps {
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Send Requirements', href: '/send-requirements', icon: Send },
-  { name: 'Quotations', href: '/quotations', icon: FileText },
-  { name: 'My Orders', href: '/orders', icon: ShoppingBag },
-  { name: 'Delivery Tracking', href: '/delivery-tracking', icon: Truck },
-  { name: 'Invoices', href: '/invoices', icon: Receipt },
-  { name: 'Payments', href: '/payments', icon: CreditCard },
-  { name: 'Order Confirmation', href: '/order-confirmation', icon: CheckCircle },
+  { name: 'Dashboard', href: '/customer', icon: LayoutDashboard },
+  { name: 'Send Requirements', href: '/customer/send-requirements', icon: Send },
+  { name: 'Quotations', href: '/customer/quotations', icon: FileText },
+  { name: 'My Orders', href: '/customer/orders', icon: ShoppingBag },
+  { name: 'Delivery Tracking', href: '/customer/delivery-tracking', icon: Truck },
+  { name: 'Invoices', href: '/customer/invoices', icon: Receipt },
+  { name: 'Payments', href: '/customer/payments', icon: CreditCard },
+  { name: 'Order Confirmation', href: '/customer/order-confirmation', icon: CheckCircle },
 ];
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
   const location = useLocation();
 
+  const handleLogout = () => {
+    // Clear all auth data from localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("customer");
+    localStorage.removeItem("customerId");
+
+    console.log("Logged out successfully. Local storage cleared.");
+
+    // Redirect to login page
+    window.location.href = "/login";
+  };
+
   return (
     <div className="flex h-[calc(100vh-57px)]">
       {/* Modern Sidebar with gradient */}
-      <div className="w-64 bg-gradient-to-b from-blue-900 to-blue-800 border-r border-blue-700 flex-shrink-0 shadow-2xl">
-        <div className="p-6">
+      <div className="w-64 bg-gradient-to-b from-blue-900 to-blue-800 border-r border-blue-700 flex-shrink-0 shadow-2xl flex flex-col">
+        <div className="p-6 flex flex-col flex-1">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
               <LayoutDashboard className="w-5 h-5 text-white" />
@@ -44,7 +57,7 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
             </div>
           </div>
           
-          <nav className="space-y-1">
+          <nav className="space-y-1 flex-1">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
               return (
@@ -68,6 +81,17 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
               );
             })}
           </nav>
+
+          {/* Logout Button */}
+          <div className="mt-4 pt-4 border-t border-blue-700">
+            <button
+              onClick={handleLogout}
+              className="group flex items-center gap-3 w-full px-4 py-3 rounded-xl text-blue-100 hover:bg-red-600 hover:text-white transition-all duration-300 hover:shadow-md"
+            >
+              <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+              <span className="text-sm">Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 

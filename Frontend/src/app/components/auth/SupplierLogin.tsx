@@ -20,26 +20,54 @@ export function SupplierLogin() {
     setError('');
     setLoading(true);
 
-    // Basic validation
+    // මූලික පරීක්ෂාව
     if (!email || !password) {
       setError('Please enter both email and password');
       setLoading(false);
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address');
-      setLoading(false);
-      return;
-    }
+    try {
+      // Backend Login API එකට සම්බන්ධ වීම
+      const response = await fetch("http://localhost:5900/api/users/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Simulate login (replace with actual authentication)
-    setTimeout(() => {
+      const data = await response.json();
+
+      if (response.ok) {
+        // වැදගත්: Login වන පරිශීලකයා Supplier කෙනෙක්දැයි පරීක්ෂා කිරීම
+        if (data.user.role !== 'Supplier') {
+          setError('Access denied. This portal is for suppliers only.');
+          setLoading(false);
+          return;
+        }
+
+        // 1. Token එක සහ Profile එක සුරැකීම
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userProfile", JSON.stringify(data.user));
+        
+        // 2. Role එක සහ customID එක (SUPxxxxx) සුරැකීම
+        localStorage.setItem("userRole", data.user.role.toLowerCase());
+        localStorage.setItem("customID", data.user.customID);
+
+        console.log("Supplier Login Success! ID:", data.user.customID);
+        
+        // 3. Supplier Dashboard එකට යොමු කිරීම
+        navigate('/supplier');
+        // Role change එක හරියටම පෙන්වීමට අවශ්‍ය නම් පමණක් පාවිච්චි කරන්න:
+        // window.location.reload(); 
+      } else {
+        setError(data.message || "Invalid email or password");
+      }
+    } catch (err) {
+      console.error("Login Error:", err);
+      setError("Server connection failed. Please try again.");
+    } finally {
       setLoading(false);
-      // Navigate to supplier dashboard
-      navigate('/');
-      window.location.reload(); // To trigger role change
-    }, 1000);
+    }
   };
 
   return (
@@ -51,19 +79,16 @@ export function SupplierLogin() {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        {/* Back Button */}
         <Button
           variant="ghost"
-          onClick={() => navigate('/welcome')}
+          onClick={() => navigate('/')}
           className="mb-6 text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Home
         </Button>
 
-        {/* Login Card */}
         <Card className="border-0 shadow-2xl overflow-hidden">
-          {/* Header with Gradient */}
           <CardHeader className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-8 text-center">
             <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Truck className="w-8 h-8 text-white" />
@@ -74,83 +99,70 @@ export function SupplierLogin() {
 
           <CardContent className="p-8">
             <form onSubmit={handleLogin} className="space-y-6">
-              {/* Error Message */}
               {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-red-900">{error}</p>
-                  </div>
+                  <p className="text-sm text-red-900">{error}</p>
                 </div>
               )}
 
-              {/* Email Field */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-700">Email Address</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <Input
                     id="email"
                     type="email"
+                    required
                     placeholder="supplier@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 border-slate-200 focus:border-green-500 focus:ring-green-500 h-12"
+                    className="pl-10 border-slate-200 focus:border-green-500 h-12"
                   />
                 </div>
               </div>
 
-              {/* Password Field */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-700">Password</Label>
+                <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <Input
                     id="password"
                     type="password"
+                    required
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 border-slate-200 focus:border-green-500 focus:ring-green-500 h-12"
+                    className="pl-10 border-slate-200 focus:border-green-500 h-12"
                   />
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="remember"
                     checked={rememberMe}
                     onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                    className="border-slate-300"
+                    className="border-slate-300 data-[state=checked]:bg-green-600"
                   />
                   <Label htmlFor="remember" className="text-sm text-slate-600 cursor-pointer">
                     Remember me
                   </Label>
                 </div>
-                <Link to="/forgot-password" className="text-sm text-green-600 hover:text-green-700">
+                <Link to="/forgot-password" className="text-sm text-green-600 hover:text-green-700 font-medium">
                   Forgot password?
                 </Link>
               </div>
 
-              {/* Login Button */}
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white h-12 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white h-12 text-lg shadow-lg"
               >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Logging in...
-                  </div>
-                ) : (
-                  'Login to Supplier Portal'
-                )}
+                {loading ? 'Logging in...' : 'Login to Supplier Portal'}
               </Button>
 
-              {/* Divider */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200"></div>
@@ -160,7 +172,6 @@ export function SupplierLogin() {
                 </div>
               </div>
 
-              {/* Register Link */}
               <div className="text-center p-4 bg-green-50 rounded-xl border border-green-100">
                 <p className="text-slate-600 mb-2">Don't have an account?</p>
                 <Link to="/supplier-register">
@@ -177,7 +188,6 @@ export function SupplierLogin() {
           </CardContent>
         </Card>
 
-        {/* Footer */}
         <p className="text-center text-sm text-slate-600 mt-6">
           By logging in, you agree to our Terms of Service and Privacy Policy
         </p>

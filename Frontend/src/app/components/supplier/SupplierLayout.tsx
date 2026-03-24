@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FileText,
@@ -8,32 +8,41 @@ import {
   ShoppingCart,
   Truck,
   Receipt,
-  DollarSign
+  DollarSign,
+  LogOut
 } from 'lucide-react';
 
 interface SupplierLayoutProps {
   children: ReactNode;
 }
 
+
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Customer Requirements', href: '/requirements', icon: FileText },
-  { name: 'Create Quotation', href: '/create-quotation', icon: Send },
-  { name: 'Quotation Status', href: '/quotation-status', icon: CheckCircle },
-  { name: 'Customer Orders', href: '/orders', icon: ShoppingCart },
-  { name: 'Delivery & Dispatch', href: '/delivery', icon: Truck },
-  { name: 'Invoice Submission', href: '/invoices', icon: Receipt },
-  { name: 'Payment Status', href: '/payments', icon: DollarSign },
+  { name: 'Dashboard', href: '/supplier', icon: LayoutDashboard },
+  { name: 'Customer Requirements', href: '/supplier/requirements', icon: FileText },
+  { name: 'Create Quotation', href: '/supplier/create-quotation', icon: Send },
+  { name: 'Quotation Status', href: '/supplier/quotation-status', icon: CheckCircle },
+  { name: 'Customer Orders', href: '/supplier/orders', icon: ShoppingCart },
+  { name: 'Delivery & Dispatch', href: '/supplier/delivery', icon: Truck },
+  { name: 'Invoice Submission', href: '/supplier/invoices', icon: Receipt },
+  { name: 'Payment Status', href: '/supplier/payments', icon: DollarSign },
 ];
+
 
 export function SupplierLayout({ children }: SupplierLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/supplier-login');
+  };
 
   return (
     <div className="flex h-[calc(100vh-57px)]">
       {/* Modern Sidebar with green gradient */}
-      <div className="w-64 bg-gradient-to-b from-green-900 to-emerald-800 border-r border-green-700 flex-shrink-0 shadow-2xl">
-        <div className="p-6">
+      <div className="w-64 bg-gradient-to-b from-green-900 to-emerald-800 border-r border-green-700 flex-shrink-0 shadow-2xl flex flex-col h-full">
+        <div className="p-6 flex-1">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
               <LayoutDashboard className="w-5 h-5 text-white" />
@@ -68,6 +77,17 @@ export function SupplierLayout({ children }: SupplierLayoutProps) {
               );
             })}
           </nav>
+        </div>
+
+        {/* Logout Button */}
+        <div className="p-4 border-t border-green-700">
+          <button
+            onClick={handleLogout}
+            className="w-full group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-green-100 hover:bg-red-600/80 hover:text-white"
+          >
+            <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+            <span className="text-sm">Logout</span>
+          </button>
         </div>
       </div>
 
