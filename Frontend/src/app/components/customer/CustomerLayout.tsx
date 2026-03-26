@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Send,
@@ -29,17 +29,21 @@ const navigation = [
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     // Clear all auth data from localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("customer");
     localStorage.removeItem("customerId");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userProfile");
+    localStorage.removeItem("customID");
 
     console.log("Logged out successfully. Local storage cleared.");
 
     // Redirect to login page
-    window.location.href = "/login";
+    navigate("/customer-login");
   };
 
   return (

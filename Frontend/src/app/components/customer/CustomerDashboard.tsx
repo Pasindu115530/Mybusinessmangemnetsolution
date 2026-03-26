@@ -74,7 +74,7 @@ export function CustomerDashboard() {
               <h1 className="text-3xl mb-2">Welcome Back!</h1>
               <p className="text-blue-100">Manage your orders, quotations, and track deliveries</p>
             </div>
-            <Link to="/send-requirements">
+            <Link to="/customer/send-requirements">
               <Button className="bg-white text-blue-700 hover:bg-blue-50 shadow-xl">
                 <Send className="w-4 h-4 mr-2" />
                 Send New Requirement
@@ -114,28 +114,28 @@ export function CustomerDashboard() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link to="/send-requirements">
+              <Link to="/customer/send-requirements">
                 <Button variant="outline" className="w-full h-auto p-4 flex-col items-start hover:bg-blue-50 hover:border-blue-300">
                   <Send className="w-5 h-5 text-blue-600 mb-2" />
                   <span className="text-slate-900">Send Requirements</span>
                   <span className="text-xs text-slate-500 mt-1">Submit new request</span>
                 </Button>
               </Link>
-              <Link to="/quotations">
+              <Link to="/customer/quotations">
                 <Button variant="outline" className="w-full h-auto p-4 flex-col items-start hover:bg-yellow-50 hover:border-yellow-300">
                   <FileText className="w-5 h-5 text-yellow-600 mb-2" />
                   <span className="text-slate-900">View Quotations</span>
                   <span className="text-xs text-slate-500 mt-1">Review & accept quotes</span>
                 </Button>
               </Link>
-              <Link to="/delivery-tracking">
+              <Link to="/customer/delivery-tracking">
                 <Button variant="outline" className="w-full h-auto p-4 flex-col items-start hover:bg-purple-50 hover:border-purple-300">
                   <Truck className="w-5 h-5 text-purple-600 mb-2" />
                   <span className="text-slate-900">Track Delivery</span>
                   <span className="text-xs text-slate-500 mt-1">Monitor shipments</span>
                 </Button>
               </Link>
-              <Link to="/payments">
+              <Link to="/customer/payments">
                 <Button variant="outline" className="w-full h-auto p-4 flex-col items-start hover:bg-green-50 hover:border-green-300">
                   <CreditCard className="w-5 h-5 text-green-600 mb-2" />
                   <span className="text-slate-900">Make Payment</span>
@@ -156,7 +156,7 @@ export function CustomerDashboard() {
                   <ShoppingBag className="w-5 h-5 text-blue-600" />
                   Recent Orders
                 </CardTitle>
-                <Link to="/orders">
+                <Link to="/customer/orders">
                   <Button variant="outline" size="sm">View All</Button>
                 </Link>
               </div>
@@ -190,7 +190,7 @@ export function CustomerDashboard() {
                   <FileText className="w-5 h-5 text-blue-600" />
                   Pending Quotations
                 </CardTitle>
-                <Link to="/quotations">
+                <Link to="/customer/quotations">
                   <Button variant="outline" size="sm">View All</Button>
                 </Link>
               </div>
@@ -212,7 +212,7 @@ export function CustomerDashboard() {
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
                       <span>Expires: {quotation.expiryDate}</span>
-                      <Link to="/quotations">
+                      <Link to="/customer/quotations">
                         <Button size="sm" variant="outline" className="h-6 text-xs">
                           Review
                         </Button>

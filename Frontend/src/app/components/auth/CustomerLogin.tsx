@@ -35,7 +35,7 @@ export function CustomerLogin() {
         // 1. Token එක සහ මුළු පරිශීලක දත්තම සුරැකීම
         localStorage.setItem("token", data.token);
         localStorage.setItem("userProfile", JSON.stringify(data.customer || data.user));
-        localStorage.setItem("userRole", data.user.role.toLowerCase());
+        localStorage.setItem("userRole", "customer");
         
         // 2. Relationship සඳහා customID එක වෙනම සුරැකීම
         // Backend එකෙන් එවන්නේ customID ද customerId ද යන්න මත මෙය වෙනස් විය හැක
