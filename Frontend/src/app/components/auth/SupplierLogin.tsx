@@ -45,15 +45,18 @@ export function SupplierLogin() {
           return;
         }
 
-        // 1. Token එක සහ Profile එක සුරැකීම
+        // 1. Store token
         localStorage.setItem("token", data.token);
-        localStorage.setItem("userProfile", JSON.stringify(data.user));
-        
-        // 2. Role එක සහ customID එක (SUPxxxxx) සුරැකීම
+
+        // 2. Store full user object under 'user' key (used by all components)
+        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("userProfile", JSON.stringify(data.user)); // backward compat
+
+        // 3. Role and customID
         localStorage.setItem("userRole", data.user.role.toLowerCase());
         localStorage.setItem("customID", data.user.customID);
 
-        console.log("Supplier Login Success! ID:", data.user.customID);
+        console.log("Supplier Login Success! _id:", data.user._id, "customID:", data.user.customID);
         
         // 3. Supplier Dashboard එකට යොමු කිරීම
         navigate('/supplier');

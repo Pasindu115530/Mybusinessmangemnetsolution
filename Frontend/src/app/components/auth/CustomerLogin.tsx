@@ -32,19 +32,23 @@ export function CustomerLogin() {
       const data = await response.json();
 
       if (response.ok) {
-        // 1. Token එක සහ මුළු පරිශීලක දත්තම සුරැකීම
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userProfile", JSON.stringify(data.customer || data.user));
-        localStorage.setItem("userRole", "customer");
-        
-        // 2. Relationship සඳහා customID එක වෙනම සුරැකීම
-        // Backend එකෙන් එවන්නේ customID ද customerId ද යන්න මත මෙය වෙනස් විය හැක
-        const userId = data.customer?.customerId || data.user?.customID;
-        if (userId) {
-          localStorage.setItem("customID", userId);
-        }
+        const userData = data.customer || data.user;
 
-        console.log("Login Success!");
+        // 1. Store token
+        localStorage.setItem("token", data.token);
+
+        // 2. Store full user object under 'user' key (used by all components)
+        localStorage.setItem("user", JSON.stringify(userData));
+        localStorage.setItem("userProfile", JSON.stringify(userData)); // backward compat
+
+        // 3. Store role
+        localStorage.setItem("userRole", "customer");
+
+        // 4. Store customID separately for convenience
+        const customID = userData?.customID || userData?.customerId;
+        if (customID) localStorage.setItem("customID", customID);
+
+        console.log("Customer Login Success! _id:", userData?._id, "customID:", customID);
         
         // 3. සාර්ථක වූ පසු Dashboard එකට යොමු කිරීම
         // window.location.href වෙනුවට navigate පාවිච්චි කිරීම වඩාත් සුදුසුයි

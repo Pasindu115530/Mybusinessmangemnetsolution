@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { 
   Plus, Trash2, Upload, Send, CheckCircle, X, FileText, 
   Package, Loader2, Clock, Eye, ShieldCheck, 
-  ArrowUpRight, layers, Hourglass
+  ArrowUpRight, Layers, Hourglass
 } from 'lucide-react';
 
 interface RequirementItem {
