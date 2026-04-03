@@ -3,6 +3,7 @@ import mongoose from "mongoose"
 import jwt from "jsonwebtoken"
 import cors from "cors"
 import dotenv from "dotenv"
+import requirementRoutes from "./routes/requirementRoutes.js"
   
 
 dotenv.config()
@@ -50,10 +51,10 @@ app.use(express.json())
 // app.use("/api/admin", adminRouter)  
 // app.use("/api/customers", customerRouter)
 // app.use("/api/suppliers", supplierRouter)
-app.use("/api/stocks", stockRouter)
+// app.use("/api/stocks", stockRouter)
 // app.use("/api/orders", orderRoutes)
 // app.use("/api/products", productRouter)
-// app.use("/api/requirements", requirementRoutes)
+app.use("/api/requirements", requirementRoutes)
 // app.use("/api/quotations", quotationRoutes)
 // app.use("/api/invoices", invoiceRoutes)
 

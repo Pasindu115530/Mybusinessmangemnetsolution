@@ -46,12 +46,12 @@ export function SendRequirements() {
   };
 
   const fetchData = async () => {
-    const customerId = getCustomerId();
-    if (!customerId) return;
+    const customID = getCustomerId();
+    if (!customID) return;
     try {
       setHistoryLoading(true);
-      const res = await axios.get(`YOUR_BACKEND_URL/api/requirements?customerId=${customerId}`);
-      const statsRes = await axios.get(`YOUR_BACKEND_URL/api/requirements/stats?customerId=${customerId}`);
+      const res = await axios.get(`http://localhost:5900/api/requirements?customerId=${customID}`);
+      const statsRes = await axios.get(`http://localhost:5900/api/requirements/stats?customerId=${customID}`);
       
       if (res.data.success) setSentRequirements(res.data.requirements);
       if (statsRes.data.success) {
@@ -77,7 +77,7 @@ export function SendRequirements() {
       formData.append('requirements', JSON.stringify(items));
       formData.append('customerId', getCustomerId());
       uploadedFiles.forEach(f => formData.append('attachedDocument', f));
-      await axios.post('YOUR_BACKEND_URL/api/requirements', formData);
+      await axios.post('http://localhost:5900/api/requirements', formData);
       setShowSuccessModal(true);
       setItems([{ id: 1, itemName: '', quantity: '', unit: 'units', notes: '', deliveryDate: '' }]);
       setUploadedFiles([]);
