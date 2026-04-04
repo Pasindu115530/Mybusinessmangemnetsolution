@@ -38,7 +38,7 @@ export function SendRequirements() {
   const [loading, setLoading] = useState(false);
   const [sentRequirements, setSentRequirements] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, received: 0, pending: 0 });
+  const [stats, setStats] = useState({ total: 0, received: 0, pending: 0, rejected: 0 });
 
   const getCustomerId = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -58,7 +58,8 @@ export function SendRequirements() {
         setStats({
           total: statsRes.data.stats.total,
           received: statsRes.data.stats.completed + statsRes.data.stats.in_progress,
-          pending: statsRes.data.stats.new
+          pending: statsRes.data.stats.new,
+          rejected: statsRes.data.stats.rejected || 0,
         });
       }
     } catch (error) { console.error(error); } finally { setHistoryLoading(false); }
@@ -114,7 +115,7 @@ export function SendRequirements() {
         </div>
 
         {/* --- PREMIUM STATS BOXES --- */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="group relative overflow-hidden rounded-3xl bg-white p-1 shadow-sm transition-all hover:shadow-xl border border-slate-100">
             <div className="flex items-center p-6">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
@@ -160,6 +161,22 @@ export function SendRequirements() {
                 </div>
               </div>
               <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-slate-200 group-hover:text-amber-400" />
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-3xl bg-white p-1 shadow-sm transition-all hover:shadow-xl border border-slate-100">
+            <div className="flex items-center p-6">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600 transition-colors group-hover:bg-red-600 group-hover:text-white">
+                <X className="h-6 w-6" />
+              </div>
+              <div className="ml-5">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Rejected</p>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl font-black text-slate-900">{stats.rejected}</h3>
+                  <span className="text-[10px] text-slate-400">Declined</span>
+                </div>
+              </div>
+              <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-slate-200 group-hover:text-red-400" />
             </div>
           </div>
         </div>

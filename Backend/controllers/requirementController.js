@@ -24,13 +24,14 @@ export const getRequirementStats = async (req, res) => {
             { $group: { _id: "$status", count: { $sum: 1 } } },
         ]);
 
-        const result = { total: 0, new: 0, completed: 0, in_progress: 0 };
+        const result = { total: 0, new: 0, completed: 0, in_progress: 0, rejected: 0 };
 
         stats.forEach(({ _id, count }) => {
             result.total += count;
-            if (_id === "pending")                     result.new         += count;
+            if (_id === "pending")                      result.new         += count;
             if (_id === "quoted" || _id === "accepted") result.in_progress += count;
-            if (_id === "delivered")                   result.completed   += count;
+            if (_id === "delivered")                    result.completed   += count;
+            if (_id === "rejected")                     result.rejected    += count;
         });
 
         return res.status(200).json({ success: true, stats: result });

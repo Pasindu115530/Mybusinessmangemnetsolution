@@ -26,7 +26,7 @@ export function CustomerRequests() {
   const navigate = useNavigate();
   const [requirements, setRequirements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pending: 0, in_progress: 0, completed: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, in_progress: 0, completed: 0, rejected: 0 });
   const [activeTab, setActiveTab] = useState('all');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -71,10 +71,11 @@ export function CustomerRequests() {
 
   // --- Stats Boxes සඳහා Data ---
   const statCards = [
-    { label: 'Total Received', value: stats.total, icon: <ClipboardList className="h-6 w-6" />, color: 'bg-blue-50 text-blue-600' },
-    { label: 'In Progress', value: stats.in_progress, icon: <Send className="h-6 w-6" />, color: 'bg-violet-50 text-violet-600' },
-    { label: 'Pending Review', value: stats.pending, icon: <Clock className="h-6 w-6" />, color: 'bg-amber-50 text-amber-600' },
-    { label: 'Completed', value: stats.completed, icon: <CheckCircle2 className="h-6 w-6" />, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Total Received', value: stats.total,      icon: <ClipboardList className="h-6 w-6" />, color: 'bg-blue-50 text-blue-600' },
+    { label: 'In Progress',   value: stats.in_progress, icon: <Send className="h-6 w-6" />,        color: 'bg-violet-50 text-violet-600' },
+    { label: 'Pending Review',value: stats.pending,     icon: <Clock className="h-6 w-6" />,        color: 'bg-amber-50 text-amber-600' },
+    { label: 'Completed',     value: stats.completed,   icon: <CheckCircle2 className="h-6 w-6" />, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Rejected',      value: stats.rejected,    icon: <XCircle className="h-6 w-6" />,      color: 'bg-red-50 text-red-600' },
   ];
 
   return (
@@ -91,7 +92,7 @@ export function CustomerRequests() {
         </div>
 
         {/* 2. Stats Boxes Section (දැන් මෙය නැවත ඇතුළත් කර ඇත) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
           {statCards.map((s) => (
             <div key={s.label} className="group relative overflow-hidden rounded-3xl bg-white p-6 shadow-sm border border-slate-100 transition-all hover:shadow-md">
               <div className="flex items-center gap-4">
@@ -276,14 +277,16 @@ export function CustomerRequests() {
                         </DialogContent>
                       </Dialog>
 
-                      {/* Create Quotation Button */}
-                      <Button
-                        size="sm"
-                        onClick={() => navigate('/create-quotation', { state: { requirement: req } })}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200"
-                      >
-                        <FilePlus className="h-4 w-4 mr-1" /> Create Quotation
-                      </Button>
+                      {/* Create Quotation Button — hidden if rejected */}
+                      {req.status !== 'rejected' && (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate('/create-quotation', { state: { requirement: req } })}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200"
+                        >
+                          <FilePlus className="h-4 w-4 mr-1" /> Create Quotation
+                        </Button>
+                      )}
 
 
                     </div>
