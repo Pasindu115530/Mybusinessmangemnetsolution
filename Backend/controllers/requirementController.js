@@ -1,90 +1,196 @@
-import Requirement from "../models/requirementModel.js";
-import multer from "multer";
-import path from "path";
+import Requirement from "../models/Requirement.js";
+import mongoose from "mongoose";
 
-// ── Multer setup for file uploads ──────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-export const upload = multer({ storage });
+// ==========================================
+// 1. GET ALL REQUIREMENTS
+//    GET /api/requirements?customerId=&status=&search=
+//    Admin → all records | Customer → own records only
+// =========================================
 
-// ── Create requirement (POST /api/requirements) ───────────────────────────
-export const createRequirement = async (req, res) => {
-  try {
-    const { requirements, customerId } = req.body;
-    const attachedDocument = req.files ? req.files.map((f) => f.filename) : [];
+// ==========================================
+// 2. GET STATS
+//    GET /api/requirements/stats?customerId=
+//    Frontend stats boxes සඳහා — total, pending, quoted/accepted/delivered
+// ==========================================
+export const getRequirementStats = async (req, res) => {
+    try {
+        const { customerId } = req.query;
+        const matchStage = customerId
+            ? { customerId: new mongoose.Types.ObjectId(customerId) }
+            : {};
 
-    const parsed = typeof requirements === "string" ? JSON.parse(requirements) : requirements;
+        const stats = await Requirement.aggregate([
+            { $match: matchStage },
+            { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]);
 
-    const newReq = new Requirement({
-      customerId,
-      requirements: parsed,
-      attachedDocument,
-    });
+        const result = { total: 0, new: 0, completed: 0, in_progress: 0 };
 
-    await newReq.save();
-    res.status(201).json({ success: true, requirement: newReq });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+        stats.forEach(({ _id, count }) => {
+            result.total += count;
+            if (_id === "pending")                     result.new         += count;
+            if (_id === "quoted" || _id === "accepted") result.in_progress += count;
+            if (_id === "delivered")                   result.completed   += count;
+        });
+
+        return res.status(200).json({ success: true, stats: result });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
-// ── Get all requirements — admin sees all, customer sees own ───────────────
-export const getRequirements = async (req, res) => {
-  try {
-    const { customerId } = req.query;
-    const filter = customerId ? { customerId } : {};
-    const requirements = await Requirement.find(filter).sort({ createdAt: -1 });
-    res.json({ success: true, requirements });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ── Stats (GET /api/requirements/stats) ───────────────────────────────────
-export const getStats = async (req, res) => {
-  try {
-    const { customerId } = req.query;
-    const filter = customerId ? { customerId } : {};
-
-    const [total, pending, in_progress, completed, rejected] = await Promise.all([
-      Requirement.countDocuments(filter),
-      Requirement.countDocuments({ ...filter, status: "pending" }),
-      Requirement.countDocuments({ ...filter, status: "in_progress" }),
-      Requirement.countDocuments({ ...filter, status: "completed" }),
-      Requirement.countDocuments({ ...filter, status: "rejected" }),
-    ]);
-
-    res.json({ success: true, stats: { total, pending, in_progress, completed, rejected } });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ── Get single requirement by ID ───────────────────────────────────────────
+// ==========================================
+// 3. GET SINGLE REQUIREMENT BY ID
+//    GET /api/requirements/:id?customerId=
+// ==========================================
 export const getRequirementById = async (req, res) => {
-  try {
-    const req_ = await Requirement.findById(req.params.id);
-    if (!req_) return res.status(404).json({ success: false, message: "Not found" });
-    res.json({ success: true, requirement: req_ });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+    try {
+        const { customerId } = req.query;
+
+        const requirement = await Requirement.findById(req.params.id)
+            .populate("customerId", "fullName email contactNumber companyName address");
+
+        if (!requirement) {
+            return res.status(404).json({ success: false, message: "Requirement not found" });
+        }
+
+        // Security: Admin හට ඕනෑම record බැලිය හැක; Customer ට ස්වකීය record පමණි
+        const isAdmin = req.user && req.user.role === "Admin";
+        if (!isAdmin && customerId && requirement.customerId._id.toString() !== customerId) {
+            return res.status(403).json({ success: false, message: "Access Denied" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            requirement: {
+                id:               requirement._id,
+                requirementId:    `REQ-${requirement._id.toString().slice(-5).toUpperCase()}`,
+                customer:         requirement.customerId,
+                status:           requirement.status,
+                createdAt:        requirement.createdAt,
+                items:            requirement.requirements,
+                attachedDocument: requirement.attachedDocument || null,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
-// ── Update status (PATCH /api/requirements/:id/status) ───────────────────
-export const updateStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const updated = await Requirement.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-    if (!updated) return res.status(404).json({ success: false, message: "Not found" });
-    res.json({ success: true, requirement: updated });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+// ==========================================
+// 4. CREATE REQUIREMENT
+//    POST /api/requirements   (multipart/form-data)
+//    Body: requirements (JSON string), customerId
+//    File: attachedDocument (optional)
+// ==========================================
+export const createRequirement = async (req, res) => {
+    try {
+        const { requirements, customerId } = req.body;
+
+        if (!customerId) {
+            return res.status(400).json({ success: false, message: "Customer ID is required" });
+        }
+
+        if (!requirements) {
+            return res.status(400).json({ success: false, message: "At least one requirement item is required" });
+        }
+
+        const parsedItems = JSON.parse(requirements);
+
+        const newRequirement = new Requirement({
+            customerId,
+            requirements: parsedItems,
+            attachedDocument: req.file ? req.file.path : null,
+            status: "pending",
+        });
+
+        const saved = await newRequirement.save();
+
+        return res.status(201).json({
+            success: true,
+            message: "Requirement submitted successfully",
+            data: saved,
+        });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+// ==========================================
+// 5. UPDATE STATUS  (Admin Only)
+//    PATCH /api/requirements/:id/status
+//    Body: { status }
+// ==========================================
+export const updateRequirementStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const { id } = req.params;
+
+        const validStatuses = ["pending", "quoted", "accepted", "delivered", "rejected"];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+        }
+
+        const updated = await Requirement.findByIdAndUpdate(
+            id,
+            { status },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, message: "Requirement not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Status updated to "${status}"`,
+            data: updated,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getAllRequirements = async (req, res) => {
+    try {
+        const { status, search, customerId } = req.query;
+        const filter = {};
+
+        if (customerId) filter.customerId = customerId;
+        if (status && status !== "all") filter.status = status.toLowerCase();
+
+        if (search && mongoose.Types.ObjectId.isValid(search)) {
+            filter._id = search;
+        }
+
+        const requirements = await Requirement.find(filter)
+            .populate("customerId", "fullName companyName email")
+            .sort({ createdAt: -1 });
+
+        const formatted = requirements.map((r) => {
+            return {
+                id: r._id, // Frontend එකේ key එක ලෙස භාවිතා වේ
+                requirementId: `REQ-${r._id.toString().slice(-5).toUpperCase()}`,
+                customerName: r.customerId?.fullName || "Unknown Customer",
+                companyName:  r.customerId?.companyName || "N/A",
+                
+                // වැදගත්: මෙතන සම්පූර්ණ array එකම එවනවා string එකක් නොකර
+                items: r.requirements, 
+                
+                // Table එකේ පිටත පෙන්වීමට කුඩා string එකක් සාදා ගනිමු
+                itemSummary: r.requirements?.map(i => i.itemName).join(", "),
+                
+                createdAt: r.createdAt,
+                status: r.status,
+                attachedDocument: r.attachedDocument || null,
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            requirements: formatted,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };

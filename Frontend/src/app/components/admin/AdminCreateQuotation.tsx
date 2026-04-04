@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminLayout } from './AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -15,192 +16,88 @@ import {
   X,
   CheckCircle,
   FileText,
-  DollarSign,
-  Calendar,
   Package,
-  Plus,
-  Trash2,
-  Search,
-  Upload,
-  Users,
-  TrendingUp,
-  AlertCircle
+  ArrowLeft,
+  ClipboardList,
+  User,
+  Building2,
+  Hash,
+  Calendar,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-interface QuotationItem {
+interface PriceItem {
   id: number;
   itemName: string;
   quantity: number;
-  unitOfMeasure: string;
+  unit: string;
+  deliveryDate?: string;
+  notes?: string;
   unitPrice: string;
   total: number;
-  notes: string;
 }
-
-interface Customer {
-  id: string;
-  name: string;
-  email: string;
-  contact: string;
-  status: 'active' | 'inactive';
-}
-
-const customers: Customer[] = [
-  { id: 'CUST-001', name: 'Acme Corp', email: 'contact@acme.com', contact: '+1 234 567 8900', status: 'active' },
-  { id: 'CUST-002', name: 'XYZ Industries', email: 'info@xyz.com', contact: '+1 234 567 8901', status: 'active' },
-  { id: 'CUST-003', name: 'Tech Solutions', email: 'hello@tech.com', contact: '+1 234 567 8902', status: 'active' },
-  { id: 'CUST-004', name: 'Global Enterprises', email: 'sales@global.com', contact: '+1 234 567 8903', status: 'active' },
-];
-
-const stockItems = [
-  'Product A - Electronics',
-  'Product B - Furniture',
-  'Product C - Textiles',
-  'Product D - Hardware',
-  'Product E - Software Licenses',
-  'Product F - Office Supplies',
-];
-
-const quotationsMonthly = [
-  { month: 'Jan', count: 12 },
-  { month: 'Feb', count: 18 },
-  { month: 'Mar', count: 15 },
-  { month: 'Apr', count: 22 },
-  { month: 'May', count: 28 },
-  { month: 'Jun', count: 25 },
-];
-
-const quotationStatus = [
-  { name: 'Approved', value: 65, color: '#10b981' },
-  { name: 'Pending', value: 25, color: '#f59e0b' },
-  { name: 'Rejected', value: 10, color: '#ef4444' },
-];
-
-const topCustomers = [
-  { name: 'Acme Corp', value: 125000 },
-  { name: 'XYZ Industries', value: 98000 },
-  { name: 'Tech Solutions', value: 85000 },
-  { name: 'Global Enterprises', value: 72000 },
-  { name: 'Innovate Ltd', value: 65000 },
-];
 
 export function AdminCreateQuotation() {
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [showCustomerSelector, setShowCustomerSelector] = useState(false);
-  
-  const [items, setItems] = useState<QuotationItem[]>([
-    { id: 1, itemName: '', quantity: 1, unitOfMeasure: 'pcs', unitPrice: '', total: 0, notes: '' },
-  ]);
-  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Requirement passed from CustomerRequests page
+  const requirement = (location.state as any)?.requirement;
+
+  // Build price items from the requirement items
+  const buildItems = (): PriceItem[] => {
+    if (requirement?.items && requirement.items.length > 0) {
+      return requirement.items.map((item: any, idx: number) => ({
+        id: idx + 1,
+        itemName: item.itemName || '',
+        quantity: Number(item.quantity) || 1,
+        unit: item.unit || 'pcs',
+        deliveryDate: item.deliveryDate,
+        notes: item.notes,
+        unitPrice: '',
+        total: 0,
+      }));
+    }
+    return [];
+  };
+
+  const [items, setItems] = useState<PriceItem[]>(buildItems);
+
   const [quotationDetails, setQuotationDetails] = useState({
     quotationId: 'QT-' + Date.now().toString().slice(-6),
     creationDate: new Date().toISOString().split('T')[0],
     expiryDate: '',
     priority: 'medium',
-    status: 'draft'
   });
-  
+
   const [generalNotes, setGeneralNotes] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Add new item row
-  const addItem = () => {
-    const newItem: QuotationItem = {
-      id: items.length + 1,
-      itemName: '',
-      quantity: 1,
-      unitOfMeasure: 'pcs',
-      unitPrice: '',
-      total: 0,
-      notes: ''
-    };
-    setItems([...items, newItem]);
-  };
-
-  // Remove item row
-  const removeItem = (id: number) => {
-    if (items.length > 1) {
-      setItems(items.filter(item => item.id !== id));
-    }
-  };
-
-  // Update item field
-  const updateItem = (id: number, field: keyof QuotationItem, value: any) => {
+  // Update unit price & recalculate total
+  const updatePrice = (id: number, value: string) => {
     setItems(items.map(item => {
       if (item.id === id) {
-        const updated = { ...item, [field]: value };
-        
-        // Recalculate total if quantity or price changes
-        if (field === 'quantity' || field === 'unitPrice') {
-          const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
-          const price = field === 'unitPrice' ? parseFloat(value) || 0 : parseFloat(item.unitPrice) || 0;
-          updated.total = qty * price;
-        }
-        
-        return updated;
+        const price = parseFloat(value) || 0;
+        return { ...item, unitPrice: value, total: price * item.quantity };
       }
       return item;
     }));
   };
 
-  // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-  const taxRate = 0.1; // 10% VAT
+  const taxRate = 0.1;
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
-  // Filter customers
-  const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    customer.email.toLowerCase().includes(customerSearch.toLowerCase())
-  );
-
-  // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setUploadedFiles([...uploadedFiles, ...Array.from(e.target.files)]);
-    }
-  };
-
-  // Remove uploaded file
-  const removeFile = (index: number) => {
-    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
-  };
-
-  // Handle submit
   const handleSubmit = (action: 'send' | 'draft') => {
-    if (!selectedCustomer) {
-      alert('Please select a customer');
-      return;
-    }
-    if (items.some(item => !item.itemName || item.quantity <= 0 || !item.unitPrice)) {
-      alert('Please fill in all item details');
+    if (items.some(item => !item.unitPrice || parseFloat(item.unitPrice) <= 0)) {
+      alert('Please enter a unit price for all items');
       return;
     }
     if (!quotationDetails.expiryDate) {
       alert('Please set an expiry date');
       return;
     }
-    
     setShowSuccessModal(true);
-  };
-
-  // Reset form
-  const handleReset = () => {
-    setSelectedCustomer(null);
-    setItems([{ id: 1, itemName: '', quantity: 1, unitOfMeasure: 'pcs', unitPrice: '', total: 0, notes: '' }]);
-    setGeneralNotes('');
-    setUploadedFiles([]);
-    setQuotationDetails({
-      quotationId: 'QT-' + Date.now().toString().slice(-6),
-      creationDate: new Date().toISOString().split('T')[0],
-      expiryDate: '',
-      priority: 'medium',
-      status: 'draft'
-    });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -212,256 +109,132 @@ export function AdminCreateQuotation() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'sent': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'approved': return 'bg-green-100 text-green-700 border-green-200';
-      case 'draft': return 'bg-slate-100 text-slate-700 border-slate-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-10">
+
         {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 p-8 text-white shadow-modern-lg">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <Send className="w-5 h-5" />
-              <span className="text-blue-100">Customer Management</span>
-            </div>
-            <h1 className="text-3xl mb-2">Create Quotation</h1>
-            <p className="text-blue-100">Prepare and send quotation to customer</p>
+        <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-10 text-white shadow-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 via-slate-900 to-slate-900" />
+          <div className="relative z-10">
+            <button
+              onClick={() => navigate('/customer-requests')}
+              className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Customer Requests
+            </button>
+            <span className="bg-violet-500/20 text-violet-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-violet-500/30 mb-3 inline-block">
+              Admin Portal
+            </span>
+            <h1 className="text-4xl font-extrabold tracking-tight">
+              Create <span className="text-violet-400">Quotation</span>
+            </h1>
+            <p className="mt-2 text-slate-400 max-w-md">
+              Set prices for the customer's requirement and send the quotation.
+            </p>
           </div>
         </div>
 
-        {/* Charts & Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Quotations This Month */}
-          <Card className="modern-card border-0 shadow-modern-lg">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl pb-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-blue-600" />
-                Quotations This Month
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={quotationsMonthly}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: '12px' }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Approved vs Pending */}
-          <Card className="modern-card border-0 shadow-modern-lg">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl pb-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Quotation Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={quotationStatus}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {quotationStatus.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex justify-center gap-4 mt-2">
-                {quotationStatus.map((item) => (
-                  <div key={item.name} className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-xs text-slate-600">{item.name}</span>
+        {/* Requirement Reference Card */}
+        {requirement ? (
+          <Card className="rounded-[24px] border-none shadow-xl overflow-hidden">
+            <div className="bg-violet-600 px-8 py-4 flex items-center gap-3">
+              <ClipboardList className="h-5 w-5 text-white" />
+              <h3 className="text-white font-bold text-sm uppercase tracking-widest">Requirement Reference</h3>
+            </div>
+            <CardContent className="p-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50">
+                    <Hash className="h-4 w-4 text-violet-600" />
                   </div>
-                ))}
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Req ID</p>
+                    <p className="text-sm font-black text-slate-900">{requirement.requirementId}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                    <User className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Customer</p>
+                    <p className="text-sm font-black text-slate-900">{requirement.customerName}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+                    <Building2 className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Company</p>
+                    <p className="text-sm font-black text-slate-900">{requirement.companyName || '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
+                    <Calendar className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Received On</p>
+                    <p className="text-sm font-black text-slate-900">
+                      {requirement.createdAt ? new Date(requirement.createdAt).toLocaleDateString() : '—'}
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Top Customers */}
-          <Card className="modern-card border-0 shadow-modern-lg">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl pb-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-600" />
-                Top Customers
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={topCustomers}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '10px' }} angle={-15} textAnchor="end" height={60} />
-                  <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Customer Selection */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              Customer Selection
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            {!selectedCustomer ? (
-              <div>
-                <div className="flex gap-3 mb-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <Input
-                      placeholder="Search customers by name or email..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="pl-10 border-slate-200"
-                    />
-                  </div>
-                </div>
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead>Customer ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomers.map((customer) => (
-                        <TableRow key={customer.id} className="hover:bg-slate-50/50">
-                          <TableCell className="text-slate-900">{customer.id}</TableCell>
-                          <TableCell className="text-slate-900">{customer.name}</TableCell>
-                          <TableCell className="text-slate-600">{customer.email}</TableCell>
-                          <TableCell className="text-slate-600">{customer.contact}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
-                              {customer.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedCustomer(customer)}
-                              className="hover:bg-blue-50 hover:text-blue-600"
-                            >
-                              Select
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-sm text-slate-600 mb-1">Customer ID</p>
-                      <p className="text-slate-900">{selectedCustomer.id}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 mb-1">Name</p>
-                      <p className="text-slate-900">{selectedCustomer.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 mb-1">Email</p>
-                      <p className="text-slate-900">{selectedCustomer.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 mb-1">Contact</p>
-                      <p className="text-slate-900">{selectedCustomer.contact}</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedCustomer(null)}
-                    className="text-slate-600 hover:text-red-600"
-                  >
-                    Change
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        ) : (
+          <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-10 text-center text-slate-500">
+            No requirement reference found. Please navigate from the Customer Requests page.
+          </div>
+        )}
 
         {/* Quotation Details */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Quotation Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="rounded-[24px] border-none shadow-xl overflow-hidden">
+          <div className="bg-slate-900 px-8 py-4 flex items-center gap-3">
+            <FileText className="h-5 w-5 text-violet-400" />
+            <h3 className="text-white font-bold text-sm uppercase tracking-widest">Quotation Details</h3>
+          </div>
+          <CardContent className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div>
-                <Label>Quotation ID</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Quotation ID</Label>
                 <Input
                   value={quotationDetails.quotationId}
                   disabled
-                  className="mt-1 bg-slate-50 border-slate-200"
+                  className="mt-2 bg-slate-50 border-slate-200 font-bold text-slate-700"
                 />
               </div>
               <div>
-                <Label>Creation Date</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Creation Date</Label>
                 <Input
                   type="date"
                   value={quotationDetails.creationDate}
                   disabled
-                  className="mt-1 bg-slate-50 border-slate-200"
+                  className="mt-2 bg-slate-50 border-slate-200"
                 />
               </div>
               <div>
-                <Label>Expiry Date <span className="text-red-500">*</span></Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Expiry Date <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   type="date"
                   value={quotationDetails.expiryDate}
                   onChange={(e) => setQuotationDetails({ ...quotationDetails, expiryDate: e.target.value })}
-                  className="mt-1 border-slate-200"
+                  className="mt-2 border-slate-200"
                   min={quotationDetails.creationDate}
                 />
               </div>
               <div>
-                <Label>Priority</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Priority</Label>
                 <Select
                   value={quotationDetails.priority}
                   onValueChange={(value) => setQuotationDetails({ ...quotationDetails, priority: value })}
                 >
-                  <SelectTrigger className="mt-1 border-slate-200">
+                  <SelectTrigger className="mt-2 border-slate-200">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -471,293 +244,192 @@ export function AdminCreateQuotation() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Status</Label>
-                <div className="mt-1">
-                  <Badge className={getStatusColor(quotationDetails.status)}>
-                    {quotationDetails.status}
-                  </Badge>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Quotation Items */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-blue-600" />
-                Quotation Items
-              </CardTitle>
-              <Button
-                onClick={addItem}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Item
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead className="w-[40px]">#</TableHead>
-                    <TableHead className="min-w-[200px]">Item Name</TableHead>
-                    <TableHead className="w-[120px]">Quantity</TableHead>
-                    <TableHead className="w-[120px]">Unit</TableHead>
-                    <TableHead className="w-[120px]">Unit Price ($)</TableHead>
-                    <TableHead className="w-[120px]">Total ($)</TableHead>
-                    <TableHead className="min-w-[200px]">Notes</TableHead>
-                    <TableHead className="w-[80px]">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item, index) => (
-                    <TableRow key={item.id} className="hover:bg-slate-50/50">
-                      <TableCell className="text-slate-600">{index + 1}</TableCell>
-                      <TableCell>
-                        <Select
-                          value={item.itemName}
-                          onValueChange={(value) => updateItem(item.id, 'itemName', value)}
-                        >
-                          <SelectTrigger className="border-slate-200">
-                            <SelectValue placeholder="Select item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {stockItems.map((stockItem) => (
-                              <SelectItem key={stockItem} value={stockItem}>
-                                {stockItem}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
-                          className="border-slate-200"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={item.unitOfMeasure}
-                          onValueChange={(value) => updateItem(item.id, 'unitOfMeasure', value)}
-                        >
-                          <SelectTrigger className="border-slate-200">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pcs">Pieces</SelectItem>
-                            <SelectItem value="kg">Kilograms</SelectItem>
-                            <SelectItem value="m">Meters</SelectItem>
-                            <SelectItem value="box">Boxes</SelectItem>
-                            <SelectItem value="set">Sets</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={item.unitPrice}
-                          onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
-                          placeholder="0.00"
-                          className="border-slate-200"
-                        />
-                      </TableCell>
-                      <TableCell className="text-slate-900">
-                        ${item.total.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={item.notes}
-                          onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
-                          placeholder="Add notes..."
-                          className="border-slate-200"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeItem(item.id)}
-                          disabled={items.length === 1}
-                          className="text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Totals Summary */}
-            <div className="mt-6 flex justify-end">
-              <div className="w-full md:w-96 space-y-3 p-6 bg-slate-50 rounded-xl">
-                <div className="flex justify-between text-slate-700">
-                  <span>Subtotal:</span>
-                  <span className="text-slate-900">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-700">
-                  <span>Tax (VAT 10%):</span>
-                  <span className="text-slate-900">${tax.toFixed(2)}</span>
-                </div>
-                <div className="h-px bg-slate-300"></div>
-                <div className="flex justify-between text-lg text-slate-900">
-                  <span>Total Amount:</span>
-                  <span className="text-blue-600">${total.toFixed(2)}</span>
-                </div>
+        {/* Items Pricing Table */}
+        <Card className="rounded-[24px] border-none shadow-xl overflow-hidden">
+          <div className="bg-slate-900 px-8 py-4 flex items-center gap-3">
+            <Package className="h-5 w-5 text-violet-400" />
+            <h3 className="text-white font-bold text-sm uppercase tracking-widest">Items — Enter Prices</h3>
+          </div>
+          <CardContent className="p-0">
+            {items.length === 0 ? (
+              <div className="p-10 text-center text-slate-400">
+                No items found in this requirement.
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="py-4 pl-8 text-[10px] font-black uppercase text-slate-400">#</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase text-slate-400">Item Name</TableHead>
+                        <TableHead className="text-center text-[10px] font-black uppercase text-slate-400">Quantity</TableHead>
+                        <TableHead className="text-center text-[10px] font-black uppercase text-slate-400">Unit</TableHead>
+                        <TableHead className="text-center text-[10px] font-black uppercase text-slate-400">Delivery Date</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase text-slate-400">Notes</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase text-violet-600">Unit Price (Rs.) *</TableHead>
+                        <TableHead className="text-right pr-8 text-[10px] font-black uppercase text-slate-400">Total (Rs.)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item, idx) => (
+                        <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="py-5 pl-8 font-bold text-slate-400">{idx + 1}</TableCell>
 
-        {/* Additional Information */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Additional Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            {/* General Notes */}
-            <div>
-              <Label>General Notes / Message to Customer</Label>
-              <Textarea
-                value={generalNotes}
-                onChange={(e) => setGeneralNotes(e.target.value)}
-                placeholder="Add any additional information, terms, or special instructions..."
-                className="mt-2 min-h-32 border-slate-200"
-              />
-            </div>
+                          {/* Item Name — read-only */}
+                          <TableCell>
+                            <div className="text-sm font-bold text-slate-900">{item.itemName}</div>
+                          </TableCell>
 
-            {/* File Upload */}
-            <div>
-              <Label>Upload Documents (Optional)</Label>
-              <div className="mt-2 border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  id="file-upload"
-                  multiple
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                  <p className="text-slate-600 mb-1">Click to upload or drag and drop</p>
-                  <p className="text-sm text-slate-500">PDF, Images, Documents (Max 10MB each)</p>
-                </label>
-              </div>
+                          {/* Quantity — read-only */}
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center justify-center rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">
+                              {item.quantity}
+                            </span>
+                          </TableCell>
 
-              {/* Uploaded Files List */}
-              {uploadedFiles.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {uploadedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        <div>
-                          <p className="text-sm text-slate-900">{file.name}</p>
-                          <p className="text-xs text-slate-600">{(file.size / 1024).toFixed(2)} KB</p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(index)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                          {/* Unit — read-only */}
+                          <TableCell className="text-center">
+                            <span className="text-xs font-bold uppercase text-slate-500">{item.unit}</span>
+                          </TableCell>
+
+                          {/* Delivery Date — read-only */}
+                          <TableCell className="text-center text-xs text-slate-500">
+                            {item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString() : 'Immediate'}
+                          </TableCell>
+
+                          {/* Notes — read-only */}
+                          <TableCell className="text-xs text-slate-400 max-w-[160px] truncate italic">
+                            {item.notes || '—'}
+                          </TableCell>
+
+                          {/* Unit Price — EDITABLE */}
+                          <TableCell>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">Rs.</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.unitPrice}
+                                onChange={(e) => updatePrice(item.id, e.target.value)}
+                                placeholder="0.00"
+                                className="pl-9 border-violet-300 focus:border-violet-500 focus:ring-violet-200 font-bold w-36"
+                              />
+                            </div>
+                          </TableCell>
+
+                          {/* Total — calculated */}
+                          <TableCell className="text-right pr-8">
+                            <span className="font-black text-slate-900">
+                              {item.total > 0 ? `Rs. ${item.total.toFixed(2)}` : '—'}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Totals */}
+                <div className="flex justify-end p-8 pt-4">
+                  <div className="w-full md:w-80 space-y-3 rounded-2xl bg-slate-50 border border-slate-100 p-6">
+                    <div className="flex justify-between text-sm text-slate-600">
+                      <span>Subtotal</span>
+                      <span className="font-bold text-slate-900">Rs. {subtotal.toFixed(2)}</span>
                     </div>
-                  ))}
+                    <div className="flex justify-between text-sm text-slate-600">
+                      <span>Tax (VAT 10%)</span>
+                      <span className="font-bold text-slate-900">Rs. {tax.toFixed(2)}</span>
+                    </div>
+                    <div className="h-px bg-slate-200" />
+                    <div className="flex justify-between text-base">
+                      <span className="font-black text-slate-900">Total</span>
+                      <span className="font-black text-violet-600 text-lg">Rs. {total.toFixed(2)}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notes */}
+        <Card className="rounded-[24px] border-none shadow-xl overflow-hidden">
+          <div className="bg-slate-900 px-8 py-4 flex items-center gap-3">
+            <FileText className="h-5 w-5 text-violet-400" />
+            <h3 className="text-white font-bold text-sm uppercase tracking-widest">Notes to Customer</h3>
+          </div>
+          <CardContent className="p-8">
+            <Textarea
+              value={generalNotes}
+              onChange={(e) => setGeneralNotes(e.target.value)}
+              placeholder="Add any additional terms, delivery conditions, or special instructions..."
+              className="min-h-32 border-slate-200 resize-none"
+            />
           </CardContent>
         </Card>
 
         {/* Action Buttons */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 justify-end">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className="border-slate-300 text-slate-700 hover:bg-slate-50"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Cancel / Reset
-              </Button>
-              <Button
-                onClick={() => handleSubmit('draft')}
-                className="bg-slate-600 hover:bg-slate-700 text-white"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save as Draft
-              </Button>
-              <Button
-                onClick={() => handleSubmit('send')}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Send Quotation
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap gap-4 justify-end">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/customer-requests')}
+            className="border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl px-6"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Cancel
+          </Button>
+          <Button
+            onClick={() => handleSubmit('draft')}
+            className="bg-slate-700 hover:bg-slate-800 text-white rounded-xl px-6 shadow"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Save as Draft
+          </Button>
+          <Button
+            onClick={() => handleSubmit('send')}
+            className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-6 shadow-lg shadow-violet-200"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Send Quotation
+          </Button>
+        </div>
       </div>
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="border-0 shadow-2xl max-w-md">
-          <DialogHeader>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+        <DialogContent className="border-0 shadow-2xl max-w-md rounded-3xl p-0 overflow-hidden">
+          <div className="bg-slate-900 p-8 text-center">
+            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <DialogTitle className="text-center text-2xl">Quotation Sent Successfully!</DialogTitle>
-          </DialogHeader>
-          <div className="text-center space-y-4">
-            <div className="p-4 bg-blue-50 rounded-xl">
-              <p className="text-sm text-slate-600 mb-2">Quotation ID</p>
-              <p className="text-lg text-slate-900">{quotationDetails.quotationId}</p>
-            </div>
-            <p className="text-slate-600">
-              The quotation has been sent to {selectedCustomer?.name}. You can track its status in the quotations list.
+            <DialogHeader>
+              <DialogTitle className="text-white text-2xl font-black">Quotation Sent!</DialogTitle>
+            </DialogHeader>
+            <p className="text-slate-400 text-sm mt-2">
+              Quotation <span className="text-white font-bold">{quotationDetails.quotationId}</span> has been sent to{' '}
+              <span className="text-white font-bold">{requirement?.customerName}</span>.
             </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  handleReset();
-                }}
-                className="flex-1"
-              >
-                Create Another
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  // Navigate to quotations list
-                }}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-              >
-                View Quotations
-              </Button>
-            </div>
+          </div>
+          <div className="p-6 flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => { setShowSuccessModal(false); navigate('/customer-requests'); }}
+              className="flex-1 rounded-xl"
+            >
+              Back to Requests
+            </Button>
+            <Button
+              onClick={() => { setShowSuccessModal(false); navigate('/customer-quotations'); }}
+              className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              View Quotations
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

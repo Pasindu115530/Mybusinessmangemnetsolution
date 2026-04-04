@@ -259,11 +259,22 @@ export function SendRequirements() {
                     </TableCell>
                     <TableCell>
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                        req.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                        req.status === 'pending'  ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                        req.status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-200' :
+                        'bg-emerald-50 text-emerald-600 border border-emerald-100'
                       }`}>
-                        <div className={`h-1.5 w-1.5 rounded-full ${req.status === 'pending' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                        <div className={`h-1.5 w-1.5 rounded-full ${
+                          req.status === 'pending'  ? 'bg-amber-500 animate-pulse' :
+                          req.status === 'rejected' ? 'bg-red-500' :
+                          'bg-emerald-500'
+                        }`} />
                         {req.status}
                       </div>
+                      {req.status === 'rejected' && req.rejectReason && (
+                        <p className="text-[10px] text-red-500 mt-1 max-w-[180px] truncate italic" title={req.rejectReason}>
+                          {req.rejectReason}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-right pr-8">
                       <Button variant="ghost" size="icon" className="rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50">
