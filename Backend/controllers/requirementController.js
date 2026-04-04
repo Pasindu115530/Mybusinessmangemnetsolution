@@ -123,7 +123,7 @@ export const createRequirement = async (req, res) => {
 // ==========================================
 export const updateRequirementStatus = async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, rejectReason } = req.body;
         const { id } = req.params;
 
         const validStatuses = ["pending", "quoted", "accepted", "delivered", "rejected"];
@@ -131,9 +131,22 @@ export const updateRequirementStatus = async (req, res) => {
             return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
         }
 
+        // Build update payload
+        const updatePayload = { status };
+
+        if (status === 'rejected') {
+            if (!rejectReason || !rejectReason.trim()) {
+                return res.status(400).json({ success: false, message: 'Rejection reason is required when rejecting a requirement.' });
+            }
+            updatePayload.rejectReason = rejectReason.trim();
+        } else {
+            // Clear reject reason if status is changed away from rejected
+            updatePayload.rejectReason = null;
+        }
+
         const updated = await Requirement.findByIdAndUpdate(
             id,
-            { status },
+            updatePayload,
             { new: true }
         );
 
@@ -169,19 +182,15 @@ export const getAllRequirements = async (req, res) => {
 
         const formatted = requirements.map((r) => {
             return {
-                id: r._id, // Frontend එකේ key එක ලෙස භාවිතා වේ
+                id: r._id,
                 requirementId: `REQ-${r._id.toString().slice(-5).toUpperCase()}`,
                 customerName: r.customerId?.fullName || "Unknown Customer",
                 companyName:  r.customerId?.companyName || "N/A",
-                
-                // වැදගත්: මෙතන සම්පූර්ණ array එකම එවනවා string එකක් නොකර
-                items: r.requirements, 
-                
-                // Table එකේ පිටත පෙන්වීමට කුඩා string එකක් සාදා ගනිමු
+                items: r.requirements,
                 itemSummary: r.requirements?.map(i => i.itemName).join(", "),
-                
                 createdAt: r.createdAt,
                 status: r.status,
+                rejectReason: r.rejectReason || null,
                 attachedDocument: r.attachedDocument || null,
             };
         });
