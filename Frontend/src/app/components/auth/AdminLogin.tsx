@@ -39,7 +39,7 @@ export function AdminLogin() {
 
       if (response.ok) {
         // ආරක්ෂාව සඳහා: ලොගින් වන පරිශීලකයා Admin කෙනෙක්දැයි පරීක්ෂා කිරීම
-        if (data.user.role !== 'Admin') {
+        if (data.user.role !== 'admin') {
           setError('Access denied. This portal is strictly for administrators.');
           setLoading(false);
           return;

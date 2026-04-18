@@ -32,6 +32,12 @@ export function CustomerLogin() {
       const data = await response.json();
 
       if (response.ok) {
+        if (data.user.role !== 'Customer') {
+          setError('Access denied. This portal is strictly for customers.');
+          setLoading(false);
+          return;
+        }
+
         const userData = data.customer || data.user;
 
         // 1. Store token
@@ -49,10 +55,10 @@ export function CustomerLogin() {
         if (customID) localStorage.setItem("customID", customID);
 
         console.log("Customer Login Success! _id:", userData?._id, "customID:", customID);
-        
+
         // 3. සාර්ථක වූ පසු Dashboard එකට යොමු කිරීම
         // window.location.href වෙනුවට navigate පාවිච්චි කිරීම වඩාත් සුදුසුයි
-        navigate("/customer"); 
+        navigate("/customer");
       } else {
         setError(data.message || "Login failed. Please check your credentials.");
       }

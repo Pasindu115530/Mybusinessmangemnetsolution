@@ -22,6 +22,15 @@ const STATUS_STYLES: Record<string, string> = {
   rejected:    'bg-red-50 text-red-700 border-red-200',
 };
 
+// Human-readable labels for admin side
+const STATUS_LABELS: Record<string, string> = {
+  pending:   'Pending',
+  quoted:    'Sent',       // Quotation has been sent to customer
+  accepted:  'Accepted',
+  delivered: 'Delivered',
+  rejected:  'Rejected',
+};
+
 export function CustomerRequests() {
   const navigate = useNavigate();
   const [requirements, setRequirements] = useState<any[]>([]);
@@ -153,7 +162,7 @@ export function CustomerRequests() {
                   <TableCell className="text-slate-500 text-sm max-w-[200px] truncate">{req.itemSummary}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={`${STATUS_STYLES[req.status] || ''} px-3 py-1 rounded-lg capitalize border`}>
-                      {req.status}
+                      {STATUS_LABELS[req.status] ?? req.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right pr-8">
@@ -182,7 +191,7 @@ export function CustomerRequests() {
                                </div>
                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                                   <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">Status</p>
-                                  <Badge className={STATUS_STYLES[req.status]}>{req.status.toUpperCase()}</Badge>
+                                  <Badge className={STATUS_STYLES[req.status]}>{STATUS_LABELS[req.status] ?? req.status.toUpperCase()}</Badge>
                                </div>
                             </div>
 

@@ -41,9 +41,17 @@ export function SendRequirements() {
   const [stats, setStats] = useState({ total: 0, received: 0, pending: 0, rejected: 0 });
 
   const getCustomerId = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return user.id || user._id;
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      // The backend expects the MongoDB ObjectId (user._id), not the custom string ID like "CUST000002"
+      return user._id || user.id; 
+    }
+    return null;
   };
+
+  // Check it
+  console.log("Customer MongoDB ID is:", getCustomerId());
 
   const fetchData = async () => {
     const customID = getCustomerId();
@@ -278,15 +286,22 @@ export function SendRequirements() {
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
                         req.status === 'pending'  ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                         req.status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-200' :
+                        req.status === 'quoted'   ? 'bg-teal-50 text-teal-700 border border-teal-100' :
                         'bg-emerald-50 text-emerald-600 border border-emerald-100'
                       }`}>
                         <div className={`h-1.5 w-1.5 rounded-full ${
                           req.status === 'pending'  ? 'bg-amber-500 animate-pulse' :
                           req.status === 'rejected' ? 'bg-red-500' :
+                          req.status === 'quoted'   ? 'bg-teal-500 animate-pulse' :
                           'bg-emerald-500'
                         }`} />
-                        {req.status}
+                        {req.status === 'quoted' ? 'Received' : req.status}
                       </div>
+                      {req.status === 'quoted' && (
+                        <p className="text-[10px] text-teal-600 mt-1 flex items-center gap-1">
+                          📄 A quotation has been sent — check your quotations tab
+                        </p>
+                      )}
                       {req.status === 'rejected' && req.rejectReason && (
                         <p className="text-[10px] text-red-500 mt-1 max-w-[180px] truncate italic" title={req.rejectReason}>
                           {req.rejectReason}

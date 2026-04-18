@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminLayout } from './AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -88,17 +89,58 @@ export function AdminCreateQuotation() {
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
-  const handleSubmit = (action: 'send' | 'draft') => {
-    if (items.some(item => !item.unitPrice || parseFloat(item.unitPrice) <= 0)) {
-      alert('Please enter a unit price for all items');
-      return;
-    }
-    if (!quotationDetails.expiryDate) {
-      alert('Please set an expiry date');
-      return;
-    }
-    setShowSuccessModal(true);
+const handleSubmit = async (action: 'send' | 'draft') => {
+  // 1. මූලික Validation
+  if (items.some(item => !item.unitPrice || parseFloat(item.unitPrice) <= 0)) {
+    alert('Please enter a unit price for all items');
+    return;
+  }
+  if (!quotationDetails.expiryDate) {
+    alert('Please set an expiry date');
+    return;
+  }
+
+  // 2. Backend එකට අවශ්‍ය විදියට Data Object එක සකස් කිරීම
+  const quotationData = {
+    requirementId: requirement?.id || requirement?._id, // formatted as `id` from getAllRequirements
+    items: items.map(item => ({
+      itemName: item.itemName,
+      quantity: item.quantity,
+      unit: item.unit,
+      unitPrice: parseFloat(item.unitPrice),
+      totalPrice: item.total,
+      description: item.notes || ""
+    })),
+    subtotal: subtotal,
+    tax_amount: tax, // Backend එකේ නම tax_amount
+    total_estimate: total, // Backend එකේ නම total_estimate
+    currency: "LKR",
+    notes: generalNotes,
+    validUntil: quotationDetails.expiryDate,
+    delivery_timeline: "3-5 Business Days", // අවශ්‍ය නම් මේවා input field වලින් ගන්න
+    payment_terms: "Net 30",
+    status: action === 'draft' ? 'draft' : 'pending'
   };
+
+  try {
+    // 3. API Call එක (ඔබේ API endpoint එක මෙතනට දාන්න)
+    // සාමාන්‍යයෙන් ඔයාගේ backend එකේ route එක වෙන්නේ /api/quotations/create වගේ එකක්
+    const token = localStorage.getItem('token'); // JWT Token එක තිබේ නම්
+    
+    const response = await axios.post('http://localhost:5900/api/quotations/create-supplier-quotation', quotationData, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (response.data.success) {
+      setShowSuccessModal(true);
+    }
+  } catch (error: any) {
+    console.error("Submission Error:", error.response?.data || error.message);
+    alert(error.response?.data?.message || "Something went wrong!");
+  }
+};
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
