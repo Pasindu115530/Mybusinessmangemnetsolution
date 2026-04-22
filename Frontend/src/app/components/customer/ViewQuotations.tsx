@@ -20,6 +20,8 @@ import {
   Clock,
   Loader2
 } from 'lucide-react';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import axios from 'axios';
 
 interface QuotationItem {
@@ -74,6 +76,11 @@ export function ViewQuotations() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [actionType, setActionType] = useState<'accept' | 'reject'>('accept');
+
+  // Order Details Form State
+  const [address, setAddress] = useState('');
+  const [phonenumber, setPhonenumber] = useState('');
+  const [notes, setNotes] = useState('');
 
   const fetchQuotations = async () => {
     setLoading(true);
@@ -139,8 +146,42 @@ export function ViewQuotations() {
 
   const handleConfirmAction = async () => {
     if (!selectedQuotation) return;
+    
+    // Address & Phone required for accept order creation
+    if (actionType === 'accept' && (!address || !phonenumber)) {
+      alert("Please provide both delivery address and phone number.");
+      return;
+    }
+
     try {
       if (actionType === 'accept') {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const token = user.token || localStorage.getItem('token');
+        console.log(user);
+        console.log(token);
+        
+        // 1. Create Order Payload
+        const orderPayload = {
+          name: user.fullName || user.name || "Customer",
+          address: address,
+          phonenumber: phonenumber,
+          notes: notes,
+          items: selectedQuotation.items.map(item => ({
+            productID: item.productID || item.name || "CUSTOM",
+            name: item.name || item.productID || "Quotation Item",
+            price: item.unitPrice || item.price || 0,
+            quantity: item.quantity || 1,
+            image: item.image || "https://images.unsplash.com/photo-1542385151-efd9000785a0?w=500&auto=format&fit=crop&q=60" // Added placeholder image for custom order items
+          })),
+          quotationId: selectedQuotation._id,
+        };
+        
+        // 2. HTTP POST to Orders
+        await axios.post(`${BACKEND}/api/orders`, orderPayload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // 3. Update Quotation Status
         await axios.put(`${BACKEND}/api/quotations/accept/${selectedQuotation._id}`);
       } else {
         await axios.put(`${BACKEND}/api/quotations/reject/${selectedQuotation._id}`);
@@ -455,8 +496,42 @@ export function ViewQuotations() {
           </DialogHeader>
           <div className="py-4">
             <p className="text-slate-600 mb-4">
-              Are you sure you want to accept quotation <span className="text-blue-600 font-medium">{selectedQuotation?.quotationID || selectedQuotation?.sq_id}</span>?
+              Are you sure you want to accept quotation <span className="text-blue-600 font-medium">{selectedQuotation?.quotationID || selectedQuotation?.sq_id}</span>? Please provide delivery details to generate your order.
             </p>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <Label htmlFor="address">Delivery Address <span className="text-red-500">*</span></Label>
+                <Textarea 
+                  id="address" 
+                  value={address} 
+                  onChange={(e) => setAddress(e.target.value)} 
+                  placeholder="Enter your full delivery address" 
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phonenumber">Phone Number <span className="text-red-500">*</span></Label>
+                <Input 
+                  id="phonenumber" 
+                  value={phonenumber} 
+                  onChange={(e) => setPhonenumber(e.target.value)} 
+                  placeholder="e.g. 0712345678" 
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="notes">Order Notes (Optional)</Label>
+                <Textarea 
+                  id="notes" 
+                  value={notes} 
+                  onChange={(e) => setNotes(e.target.value)} 
+                  placeholder="Any special delivery instructions..." 
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
             <div className="bg-green-50 rounded-xl p-4 mb-4">
               <h4 className="text-green-900 mb-2 font-semibold">After acceptance:</h4>
               <ul className="space-y-1 text-sm text-green-700">
