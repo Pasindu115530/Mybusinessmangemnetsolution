@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import StockItem from "../models/Stock.js";
 
@@ -211,11 +212,28 @@ export const restockRejectedItems = async (req, res) => {
             return res.status(400).json({ message: "Item not found or already restocked" });
         }
 
-        // Increase stock
-        const stock = await StockItem.findById(item.productID);
+        // Increase stock - try finding by ID first, then by name as fallback
+        let stock = null;
+        try {
+            if (mongoose.Types.ObjectId.isValid(item.productID)) {
+                stock = await StockItem.findById(item.productID);
+            }
+        } catch (e) {
+            console.log("Restock: ID lookup failed, trying name...");
+        }
+
+        if (!stock) {
+            stock = await StockItem.findOne({ item_name: item.name });
+        }
+
         if (stock) {
             stock.quantity += item.rejectedQuantity;
             await stock.save();
+            console.log(`Restocked ${item.rejectedQuantity} of ${item.name}`);
+        } else {
+            console.warn(`Could not find stock item for ${item.name} to restock.`);
+            // We still mark as restocked in the order to avoid duplicate attempts
+            // but you might want to return an error if stock must be updated.
         }
 
         item.restocked = true;

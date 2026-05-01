@@ -37,6 +37,7 @@ interface Delivery {
 }
 
 export function CustomerDeliveryTracking() {
+  const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,17 +115,33 @@ export function CustomerDeliveryTracking() {
     }
   };
 
+  const [restockLoading, setRestockLoading] = useState<string | null>(null);
+
   const handleRestock = async (orderId: string, productID: string) => {
     try {
-      await axios.put(`http://localhost:5900/api/orders/restock-rejected/${orderId}`, {
+      setRestockLoading(`${orderId}-${productID}`);
+      const response = await axios.put(`http://localhost:5900/api/orders/restock-rejected/${orderId}`, {
         productID
       });
-      toast.success("Item restocked and added back to inventory");
-      fetchDeliveries();
-    } catch (err) {
+      
+      if (response.data) {
+        toast.success("Item restocked and added back to inventory");
+        fetchDeliveries();
+      }
+    } catch (err: any) {
       console.error("Error restocking:", err);
-      toast.error("Failed to restock item");
+      const errorMsg = err.response?.data?.message || "Failed to restock item";
+      toast.error(errorMsg);
+    } finally {
+      setRestockLoading(null);
     }
+  };
+
+  const handleCreateInvoice = (order: Delivery) => {
+    // Navigate to invoice page with order details
+    // In a real app, you might call an API to generate the invoice first
+    toast.info(`Redirecting to invoice generation for ${order.id}`);
+    navigate('/customer-invoices');
   };
 
   // 3. Derived Stats
@@ -156,7 +173,8 @@ export function CustomerDeliveryTracking() {
     return totalOrdered > 0 ? (totalIssued / totalOrdered) * 100 : 0;
   };
 
-  const rejectedDeliveries = deliveries.filter(d => d.items.some(item => (item.rejectedQuantity || 0) > 0 && !item.restocked));
+  // Show order in rejections section if it has ANY rejections (even if already restocked, until it is invoiced/resolved)
+  const rejectedDeliveries = deliveries.filter(d => d.items.some(item => (item.rejectedQuantity || 0) > 0));
 
   return (
     <AdminLayout>
@@ -198,48 +216,80 @@ export function CustomerDeliveryTracking() {
             <CardHeader className="bg-red-50 rounded-t-xl">
               <CardTitle className="flex items-center gap-2 text-red-700">
                 <AlertCircle className="w-5 h-5" />
-                Items Rejected by Customers
+                Delivery Exceptions & Rejections
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-4">
-                {rejectedDeliveries.map(order => (
-                  <div key={order._id} className="border rounded-xl p-4 bg-slate-50/50">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="font-bold text-slate-900">Order: {order.id} - {order.customer}</div>
-                      <Badge variant="outline" className="bg-white">{new Date(order.orderDate).toLocaleDateString()}</Badge>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item Name</TableHead>
-                          <TableHead className="text-center">Issued</TableHead>
-                          <TableHead className="text-center text-red-600">Rejected</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {order.items.filter(i => (i.rejectedQuantity || 0) > 0 && !i.restocked).map(item => (
-                          <TableRow key={item.productID}>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell className="text-center">{item.issuedQuantity}</TableCell>
-                            <TableCell className="text-center text-red-600 font-bold">{item.rejectedQuantity}</TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                size="sm" 
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => handleRestock(order._id, item.productID)}
-                              >
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Accept & Restock
-                              </Button>
-                            </TableCell>
+                {rejectedDeliveries.map(order => {
+                  const hasPendingRestock = order.items.some(i => (i.rejectedQuantity || 0) > 0 && !i.restocked);
+                  return (
+                    <div key={order._id} className="border rounded-xl p-4 bg-slate-50/50">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex flex-col">
+                          <div className="font-bold text-slate-900">Order: {order.id} - {order.customer}</div>
+                          <div className="text-xs text-slate-500">Status: {order.status}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-white">{new Date(order.orderDate).toLocaleDateString()}</Badge>
+                          {!hasPendingRestock && (
+                            <Button 
+                              size="sm" 
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => handleCreateInvoice(order)}
+                            >
+                              <Receipt className="w-4 h-4 mr-2" />
+                              Create Invoice
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item Name</TableHead>
+                            <TableHead className="text-center">Issued</TableHead>
+                            <TableHead className="text-center text-red-600">Rejected</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ))}
+                        </TableHeader>
+                        <TableBody>
+                          {order.items.filter(i => (i.rejectedQuantity || 0) > 0).map(item => (
+                            <TableRow key={item.productID}>
+                              <TableCell className="font-medium">{item.name}</TableCell>
+                              <TableCell className="text-center">{item.issuedQuantity}</TableCell>
+                              <TableCell className="text-center text-red-600 font-bold">{item.rejectedQuantity}</TableCell>
+                              <TableCell className="text-right">
+                                {item.restocked ? (
+                                  <Badge className="bg-green-100 text-green-700 border-green-200">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Restocked
+                                  </Badge>
+                                ) : (
+                                  <Button 
+                                    size="sm" 
+                                    className="bg-green-600 hover:bg-green-700"
+                                    onClick={() => handleRestock(order._id, item.productID)}
+                                    disabled={restockLoading === `${order._id}-${item.productID}`}
+                                  >
+                                    {restockLoading === `${order._id}-${item.productID}` ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        Accept & Restock
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -311,16 +361,30 @@ export function CustomerDeliveryTracking() {
                         </TableCell>
                         <TableCell className="text-slate-600">{new Date(delivery.orderDate).toLocaleDateString()}</TableCell>
                         <TableCell>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            disabled={delivery.status === 'delivered' || delivery.status === 'dispatched'}
-                            onClick={() => handleOpenIssueModal(delivery)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                          >
-                            <Package className="w-4 h-4 mr-2" />
-                            Issue Stock
-                          </Button>
+                          <div className="flex gap-2">
+                            {delivery.status.toLowerCase() === 'delivered' ? (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleCreateInvoice(delivery)}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                <Receipt className="w-4 h-4 mr-2" />
+                                Create Invoice
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                disabled={delivery.status === 'dispatched'}
+                                onClick={() => handleOpenIssueModal(delivery)}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                <Package className="w-4 h-4 mr-2" />
+                                Issue Stock
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
