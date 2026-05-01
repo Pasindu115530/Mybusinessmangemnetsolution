@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { AdminLayout } from './AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -38,11 +39,16 @@ import {
 interface CustomerOrder {
   id: string;
   customer: string;
+  email?: string;
+  phonenumber?: string;
+  address?: string;
   quotationRef: string;
   orderDate: string;
   totalItems: number;
   totalAmount: number;
-  status: 'pending' | 'dispatched' | 'in-transit' | 'partially-delivered' | 'completed';
+  status: string;
+  items?: any[];
+  _id?: string;
 }
 
 interface OrderItem {
@@ -63,12 +69,7 @@ interface TimelineStep {
   notes?: string;
 }
 
-const customerOrders: CustomerOrder[] = [
-  { id: 'ORD-20240115', customer: 'Acme Corp', quotationRef: 'QT-20240110', orderDate: '2024-01-15', totalItems: 3, totalAmount: 15000, status: 'completed' },
-  { id: 'ORD-20240114', customer: 'XYZ Industries', quotationRef: 'QT-20240109', orderDate: '2024-01-14', totalItems: 5, totalAmount: 22000, status: 'in-transit' },
-  { id: 'ORD-20240113', customer: 'Tech Solutions', quotationRef: 'QT-20240108', orderDate: '2024-01-13', totalItems: 2, totalAmount: 8500, status: 'dispatched' },
-  { id: 'ORD-20240112', customer: 'Global Enterprises', quotationRef: 'QT-20240107', orderDate: '2024-01-12', totalItems: 4, totalAmount: 18000, status: 'pending' },
-];
+// Fake data removed - fetching from backend instead
 
 const orderItems: OrderItem[] = [
   { id: 1, name: 'Product A - Electronics', orderedQty: 500, receivedQty: 0, damagedQty: 0, unitPrice: 250, warehouse: '', confirmed: false },
@@ -77,15 +78,33 @@ const orderItems: OrderItem[] = [
 ];
 
 export function CustomerOrders() {
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('list');
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  const [items, setItems] = useState<OrderItem[]>(orderItems);
-  const [currentStatus, setCurrentStatus] = useState<string>('in-transit');
+  const [selectedOrderData, setSelectedOrderData] = useState<CustomerOrder | null>(null);
+  const [items, setItems] = useState<OrderItem[]>([]);
+  const [currentStatus, setCurrentStatus] = useState<string>('pending');
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:5900/api/orders');
+      setOrders(response.data);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const timeline: TimelineStep[] = [
     { name: 'Quotation Accepted', status: 'completed', date: '2024-01-14 10:00 AM', notes: 'Customer accepted quotation' },
@@ -149,7 +168,7 @@ export function CustomerOrders() {
     }
   };
 
-  const filteredOrders = customerOrders.filter(order => {
+  const filteredOrders = orders.filter(order => {
     const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           order.customer.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
@@ -252,46 +271,55 @@ export function CustomerOrders() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="text-slate-900">{order.id}</TableCell>
-                          <TableCell className="text-slate-900">{order.customer}</TableCell>
-                          <TableCell className="text-slate-600">{order.quotationRef}</TableCell>
-                          <TableCell className="text-slate-600">{order.orderDate}</TableCell>
-                          <TableCell className="text-slate-900">{order.totalItems} items</TableCell>
-                          <TableCell className="text-slate-900">${order.totalAmount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(order.status)}>
-                              {getStatusIcon(order.status)}
-                              {order.status.replace('-', ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="hover:bg-amber-50 hover:text-amber-600"
-                                onClick={() => {
-                                  setSelectedOrder(order.id);
-                                  setActiveTab('view');
-                                }}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-blue-50 hover:text-blue-600" onClick={handleGenerateInvoice}>
-                                <FileText className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-purple-50 hover:text-purple-600">
-                                <Truck className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-green-50 hover:text-green-600">
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-10">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                              <p className="text-slate-500">Loading orders...</p>
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : filteredOrders.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-10 text-slate-500">
+                            No orders found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredOrders.map((order) => (
+                          <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors">
+                            <TableCell className="text-slate-900 font-medium">{order.id}</TableCell>
+                            <TableCell className="text-slate-900">{order.customer}</TableCell>
+                            <TableCell className="text-slate-600">{order.quotationRef}</TableCell>
+                            <TableCell className="text-slate-600">{new Date(order.orderDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-slate-900">{order.totalItems} items</TableCell>
+                            <TableCell className="text-slate-900 font-semibold">LKR {order.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(order.status)}>
+                                {getStatusIcon(order.status)}
+                                {order.status.replace('-', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="hover:bg-amber-50 hover:text-amber-600"
+                                  onClick={() => {
+                                    setSelectedOrderData(order);
+                                    setCurrentStatus(order.status);
+                                    setActiveTab('view');
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -341,19 +369,19 @@ export function CustomerOrders() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Invoice Number:</span>
-                        <span className="text-slate-900">INV-20240114</span>
+                        <span className="text-slate-900">INV-{selectedOrderData?.id?.replace('ORD-', '') || '---'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Order Number:</span>
-                        <span className="text-slate-900">ORD-20240114</span>
+                        <span className="text-slate-900">{selectedOrderData?.id || '---'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Order Date:</span>
-                        <span className="text-slate-900">2024-01-14</span>
+                        <span className="text-slate-900">{selectedOrderData ? new Date(selectedOrderData.orderDate).toLocaleDateString() : '---'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Quotation Ref:</span>
-                        <span className="text-slate-900">QT-20240109</span>
+                        <span className="text-slate-900">{selectedOrderData?.quotationRef || '---'}</span>
                       </div>
                     </div>
                   </div>
@@ -365,18 +393,18 @@ export function CustomerOrders() {
                       <h3 className="text-blue-900">Customer Details</h3>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-slate-900">XYZ Industries</div>
+                      <div className="text-slate-900 font-bold">{selectedOrderData?.customer || '---'}</div>
                       <div className="flex items-center gap-2 text-sm text-slate-700">
                         <MapPin className="w-4 h-4 text-blue-600" />
-                        123 Business Street, Suite 400, NY 10001
+                        {selectedOrderData?.address || 'Address not provided'}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-700">
                         <Phone className="w-4 h-4 text-blue-600" />
-                        +1 234 567 8902
+                        {selectedOrderData?.phonenumber || 'Phone not provided'}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-700">
                         <Mail className="w-4 h-4 text-blue-600" />
-                        contact@xyzindustries.com
+                        {selectedOrderData?.email || 'Email not provided'}
                       </div>
                     </div>
                   </div>
@@ -394,14 +422,19 @@ export function CustomerOrders() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {items.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                      {selectedOrderData?.items?.map((item, idx) => (
+                        <TableRow key={idx} className="hover:bg-slate-50/50">
                           <TableCell className="text-slate-900">{item.name}</TableCell>
-                          <TableCell className="text-slate-900">{item.orderedQty} units</TableCell>
-                          <TableCell className="text-slate-900">${item.unitPrice}</TableCell>
-                          <TableCell className="text-slate-900">${(item.orderedQty * item.unitPrice).toLocaleString()}</TableCell>
+                          <TableCell className="text-slate-900">{item.quantity} units</TableCell>
+                          <TableCell className="text-slate-900">LKR {item.price.toLocaleString()}</TableCell>
+                          <TableCell className="text-slate-900">LKR {(item.quantity * item.price).toLocaleString()}</TableCell>
                         </TableRow>
                       ))}
+                      {(!selectedOrderData?.items || selectedOrderData.items.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8 text-slate-500">No items in this order</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -412,19 +445,15 @@ export function CustomerOrders() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Subtotal:</span>
-                        <span className="text-slate-900">$134,000</span>
+                        <span className="text-slate-900">LKR {selectedOrderData?.totalAmount.toLocaleString() || '0'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Tax (10%):</span>
-                        <span className="text-slate-900">$13,400</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Discount:</span>
-                        <span className="text-green-600">-$5,400</span>
+                        <span className="text-slate-600">Tax (0%):</span>
+                        <span className="text-slate-900">LKR 0</span>
                       </div>
                       <div className="border-t-2 border-amber-200 pt-2 flex justify-between">
-                        <span className="text-amber-900">Total Amount:</span>
-                        <span className="text-amber-900">$142,000</span>
+                        <span className="text-amber-900 font-bold">Total Amount:</span>
+                        <span className="text-amber-900 font-bold">LKR {selectedOrderData?.totalAmount.toLocaleString() || '0'}</span>
                       </div>
                     </div>
                   </div>

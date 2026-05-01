@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 
 const orderSchema = new mongoose.Schema({
     
+    customerId: {
+        type: String,
+        required: true
+      },
     orderID :{
         type:String,
         required:true,
@@ -48,6 +52,10 @@ const orderSchema = new mongoose.Schema({
             name: {type:String, required:true},
             price: {type:Number, required:true},
             quantity: {type:Number, required:true},
+            issuedQuantity: {type:Number, default: 0},
+            receivedQuantity: {type:Number, default: 0},
+            rejectedQuantity: {type:Number, default: 0},
+            restocked: {type:Boolean, default: false},
             image: {type:String, required:true}
 
         }

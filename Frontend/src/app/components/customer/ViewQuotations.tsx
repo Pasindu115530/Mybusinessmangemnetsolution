@@ -161,8 +161,10 @@ export function ViewQuotations() {
         console.log(token);
         
         // 1. Create Order Payload
+        const customID = localStorage.getItem('customID');
         const orderPayload = {
           name: user.fullName || user.name || "Customer",
+          customerId: customID || user.id || user._id,   // Use customID if available, fallback to user id
           address: address,
           phonenumber: phonenumber,
           notes: notes,
