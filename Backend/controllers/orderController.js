@@ -19,7 +19,8 @@ export const getOrdersByCustomerId = async (req, res) => {
             totalItems: o.items?.length || 0,
             status: o.status.toLowerCase(),
             customerID: o.customerId,
-            items: o.items // Include items for tracking
+            items: o.items, // Include items for tracking
+            invoiced: o.invoiced || false
         }));
 
         res.status(200).json(mappedOrders);

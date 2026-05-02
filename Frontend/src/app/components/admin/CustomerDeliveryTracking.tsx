@@ -137,11 +137,20 @@ export function CustomerDeliveryTracking() {
     }
   };
 
-  const handleCreateInvoice = (order: Delivery) => {
-    // Navigate to invoice page with order details
-    // In a real app, you might call an API to generate the invoice first
-    toast.info(`Redirecting to invoice generation for ${order.id}`);
-    navigate('/customer-invoices');
+  const handleCreateInvoice = async (order: Delivery) => {
+    try {
+      setIsSubmitting(true);
+      await axios.post(`http://localhost:5900/api/invoices/create-from-order/${order._id}`);
+      toast.success(`Invoice created successfully for ${order.id}`);
+      fetchDeliveries(); // Refresh status
+      navigate('/customer-invoices');
+    } catch (err: any) {
+      console.error("Error creating invoice:", err);
+      const errorMsg = err.response?.data?.message || "Failed to create invoice";
+      toast.error(errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 3. Derived Stats

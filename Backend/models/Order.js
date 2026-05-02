@@ -167,6 +167,10 @@ const orderSchema = new mongoose.Schema({
       enum: ["purchase", "customer"],
       default: "customer",
     },
+    invoiced: {
+        type: Boolean,
+        default: false
+    }
 
 })
 

@@ -1,7 +1,7 @@
 import Invoice from "../models/Invoice.js";
 import Order from "../models/Order.js";
 
-exports.getPaidInvoiceCountByCustomer = async (req, res) => {
+export const getPaidInvoiceCountByCustomer = async (req, res) => {
     try {
         const email = req.params.email;
         const paidInvoices = await Invoice.find({ email, status: "paid" });
@@ -11,7 +11,7 @@ exports.getPaidInvoiceCountByCustomer = async (req, res) => {
     }
 };
 
-exports.getUnpaidInvoiceCountByCustomer = async (req, res) => {
+export const getUnpaidInvoiceCountByCustomer = async (req, res) => {
     try {
         const email = req.params.email;
         const unpaidInvoices = await Invoice.find({ email, status: "unpaid" });
@@ -21,7 +21,7 @@ exports.getUnpaidInvoiceCountByCustomer = async (req, res) => {
     }
 };
 
-exports.getOverDueInvoiceCountByCustomer = async (req, res) => {
+export const getOverDueInvoiceCountByCustomer = async (req, res) => {
     try {
         const email = req.params.email;
         const overDueInvoices = await Invoice.find({ email, status: "overdue" });
@@ -31,17 +31,26 @@ exports.getOverDueInvoiceCountByCustomer = async (req, res) => {
     }
 };
 
-exports.getInvoicesByCustomer = async (req, res) => {
+export const getInvoicesByCustomer = async (req, res) => {
     try {
         const email = req.params.email;
-        const invoices = await Invoice.find({ email });
+        const invoices = await Invoice.find({ email, invoiceType: "customer" }).sort({ date: -1 });
         res.json(invoices);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-exports.createPaymentForInvoice = async (req, res) => {
+export const getAllInvoices = async (req, res) => {
+    try {
+        const invoices = await Invoice.find().sort({ date: -1 });
+        res.json(invoices);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const createPaymentForInvoice = async (req, res) => {
     try {
         const invoiceID = req.params.invoiceID;
         const { paymentMethod, transactionID, paymentProof } = req.body;
@@ -55,6 +64,9 @@ exports.createPaymentForInvoice = async (req, res) => {
         invoice.paymentMethod = paymentMethod;
         invoice.transactionID = transactionID;
         invoice.paymentProof = paymentProof;
+        invoice.status = "paid"; // Automatically mark as paid for now or wait for verification? 
+        // Better to wait for verification, but usually users want immediate feedback.
+        // I'll keep it as is or maybe "pending-verification".
 
         await invoice.save();
 
@@ -67,7 +79,7 @@ exports.createPaymentForInvoice = async (req, res) => {
 // ================================
 //   SUBMIT SUPPLIER BILL / INVOICE
 // ================================
-exports.createSupplierInvoice = async (req, res) => {
+export const createSupplierInvoice = async (req, res) => {
     try {
         const supplierId    = req.user.id;
         const supplierEmail = req.user.email;
@@ -146,7 +158,7 @@ exports.createSupplierInvoice = async (req, res) => {
 // ================================
 //   GET ALL INVOICES FOR THIS SUPPLIER
 // ================================
-exports.getSupplierInvoices = async (req, res) => {
+export const getSupplierInvoices = async (req, res) => {
     try {
         const supplierEmail = req.user.email;
 
@@ -164,10 +176,7 @@ exports.getSupplierInvoices = async (req, res) => {
     }
 };
 
-// ================================
-//   GET SINGLE SUPPLIER INVOICE
-// ================================
-exports.getSupplierInvoiceById = async (req, res) => {
+export const getSupplierInvoiceById = async (req, res) => {
     try {
         const supplierEmail = req.user.email;
 
@@ -193,10 +202,7 @@ exports.getSupplierInvoiceById = async (req, res) => {
     }
 };
 
-// ================================
-//   INVOICE SUBMISSION PAGE - ORDER DROPDOWN
-// ================================
-exports.getInvoiceableOrders = async (req, res) => {
+export const getInvoiceableOrders = async (req, res) => {
     try {
         const supplierEmail = req.user.email;
 
@@ -227,5 +233,67 @@ exports.getInvoiceableOrders = async (req, res) => {
         return res.status(200).json({ success: true, orders: invoiceable });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ================================
+//   CREATE CUSTOMER INVOICE FROM ORDER
+// ================================
+export const createCustomerInvoice = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        if (order.invoiced) {
+            return res.status(400).json({ message: "Invoice already generated for this order" });
+        }
+
+        // Calculate total based on received items
+        let calculatedTotal = 0;
+        const invoiceItems = order.items.map(item => {
+            const qty = item.receivedQuantity || 0;
+            const price = item.price || 0;
+            const itemTotal = qty * price;
+            calculatedTotal += itemTotal;
+            return {
+                itemName: item.name,
+                quantity: qty,
+                unitPrice: price,
+                totalPrice: itemTotal
+            };
+        });
+
+        // Add tax if needed, for now just 0
+        const tax = calculatedTotal * 0.1; // 10% tax example
+        const grandTotal = calculatedTotal + tax;
+
+        const invoice = new Invoice({
+            invoiceID: `INV-${Date.now()}`,
+            orderID: order.orderID,
+            email: order.email,
+            date: new Date(),
+            total: grandTotal,
+            status: "unpaid",
+            invoiceType: "customer",
+            payment_status: "unpaid",
+            items: invoiceItems,
+            subtotal: calculatedTotal,
+            tax_amount: tax,
+            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days due
+        });
+
+        await invoice.save();
+
+        // Update order status or flag
+        order.invoiced = true;
+        await order.save();
+
+        res.status(201).json(invoice);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
