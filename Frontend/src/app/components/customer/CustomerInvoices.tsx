@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { CustomerLayout } from './CustomerLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -52,6 +53,7 @@ interface Order {
 }
 
 export function CustomerInvoices() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,27 +63,47 @@ export function CustomerInvoices() {
 
   const userDataString = localStorage.getItem('user');
   const userData = userDataString ? JSON.parse(userDataString) : null;
-  const userEmail = userData?.email;
+  const userEmail = userData?.email || localStorage.getItem('userEmail');
   const customerId = userData?.id || userData?._id || localStorage.getItem('customID') || localStorage.getItem('customerId');
 
   const fetchData = async () => {
-    if (!userEmail || !customerId) {
+    console.log("Fetching data for:", { userEmail, customerId });
+    
+    if (!customerId) {
+      console.warn("Missing Customer ID identifier");
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
-      // Fetch invoices
-      const invResponse = await axios.get(`http://localhost:5900/api/invoices/customer/${userEmail}`);
-      setInvoices(invResponse.data);
-
-      // Fetch orders to find delivered but not invoiced ones
+      
+      // 1. Fetch orders first (we can use ID)
       const orderResponse = await axios.get(`http://localhost:5900/api/orders/customer/${customerId}`);
-      const deliveredNotInvoiced = orderResponse.data.filter((o: Order) => 
+      console.log("Orders received:", orderResponse.data);
+      
+      const orders = orderResponse.data;
+      const deliveredNotInvoiced = orders.filter((o: Order) => 
         o.status.toLowerCase() === 'delivered' && !o.invoiced
       );
       setPendingOrders(deliveredNotInvoiced);
+
+      // 2. Recover email if missing
+      let effectiveEmail = userEmail;
+      if (!effectiveEmail && orders.length > 0) {
+        effectiveEmail = orders[0].email;
+        console.log("Recovered email from orders:", effectiveEmail);
+      }
+
+      // 3. Fetch invoices if we have an email
+      if (effectiveEmail) {
+        const invResponse = await axios.get(`http://localhost:5900/api/invoices/customer/${effectiveEmail}`);
+        console.log("Invoices received:", invResponse.data);
+        setInvoices(invResponse.data);
+      } else {
+        console.warn("No email found to fetch invoices");
+      }
+
     } catch (err) {
       console.error("Error fetching data:", err);
       toast.error("Failed to load invoice data");
@@ -155,6 +177,12 @@ export function CustomerInvoices() {
             <h1 className="text-3xl mb-2">Invoices</h1>
             <p className="text-blue-100">View and manage your billing history</p>
           </div>
+          {/* Diagnostic info for debugging */}
+          {(!userEmail || !customerId) && (
+             <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-xs font-mono">
+               Status: Missing User Info | Email: {userEmail || 'NULL'} | ID: {customerId || 'NULL'}
+             </div>
+          )}
         </div>
 
         {/* Summary Cards */}
@@ -167,7 +195,7 @@ export function CustomerInvoices() {
                 </div>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Paid Invoices</h3>
-              <p className="text-2xl font-bold text-slate-900">{invoices.filter(i => i.status.toLowerCase() === 'paid').length}</p>
+              <p className="text-2xl font-bold text-slate-900">{invoices?.filter(i => i.status.toLowerCase() === 'paid').length || 0}</p>
             </CardContent>
           </Card>
 
@@ -179,7 +207,7 @@ export function CustomerInvoices() {
                 </div>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Unpaid Invoices</h3>
-              <p className="text-2xl font-bold text-slate-900">{invoices.filter(i => i.status.toLowerCase() === 'unpaid').length}</p>
+              <p className="text-2xl font-bold text-slate-900">{invoices?.filter(i => i.status.toLowerCase() === 'unpaid').length || 0}</p>
             </CardContent>
           </Card>
 
@@ -191,7 +219,7 @@ export function CustomerInvoices() {
                 </div>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Awaiting Generation</h3>
-              <p className="text-2xl font-bold text-slate-900">{pendingOrders.length}</p>
+              <p className="text-2xl font-bold text-slate-900">{pendingOrders?.length || 0}</p>
             </CardContent>
           </Card>
         </div>
@@ -296,8 +324,21 @@ export function CustomerInvoices() {
                               className="hover:bg-blue-50 hover:text-blue-600 border-slate-200"
                               onClick={() => handleViewInvoice(invoice)}
                             >
-                              <Eye className="w-4 h-4 mr-2" />
+                              <Eye className="w-4 h-4 mr-1" />
                               View
+                            </Button>
+                            {invoice.status.toLowerCase() === 'unpaid' && (
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                                onClick={() => navigate(`/customer/payment?invoiceId=${invoice.invoiceID}`)}
+                              >
+                                <DollarSign className="w-4 h-4 mr-1" />
+                                Pay Now
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" className="hover:bg-slate-50 border-slate-200" onClick={handleDownload}>
+                              <Printer className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>

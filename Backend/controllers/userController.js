@@ -87,7 +87,8 @@ export async function loginUser(req, res) {
             id: user._id,
             customID: user.customID,
             role: user.role, // මෙය Frontend එකේ Routes filter කිරීමට වැදගත් වේ
-            fullName: user.fullName
+            fullName: user.fullName,
+            email: user.email
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "150h" });

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { CustomerLayout } from './CustomerLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,6 +10,7 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
+import { toast } from 'sonner';
 import {
   CreditCard,
   Upload,
@@ -17,28 +20,65 @@ import {
   DollarSign,
   Save,
   Send,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
-interface PendingInvoice {
-  id: string;
-  orderRef: string;
-  amount: number;
-  dueDate: string;
+interface Invoice {
+  _id: string;
+  invoiceID: string;
+  orderID: string;
+  total: number;
+  date: string;
+  due_date?: string;
+  status: string;
 }
 
-const pendingInvoices: PendingInvoice[] = [
-  { id: 'INV-20240114', orderRef: 'ORD-20240114', amount: 22000, dueDate: '2024-02-13' },
-  { id: 'INV-20240112', orderRef: 'ORD-20240112', amount: 18000, dueDate: '2024-02-11' },
-];
-
 export function CustomerPayment() {
-  const [selectedInvoice, setSelectedInvoice] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('bank');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [selectedInvoiceID, setSelectedInvoiceID] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('online');
   const [transactionId, setTransactionId] = useState('');
   const [notes, setNotes] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        const email = userData.email || localStorage.getItem('userEmail');
+        
+        if (!email) {
+          toast.error("User email not found. Please log in again.");
+          return;
+        }
+
+        const res = await axios.get(`http://localhost:5900/api/invoices/customer/${email}`);
+        const unpaid = res.data.filter((i: Invoice) => i.status.toLowerCase() === 'unpaid');
+        setInvoices(unpaid);
+
+        // Check for invoiceId in URL
+        const queryParams = new URLSearchParams(location.search);
+        const urlInvoiceId = queryParams.get('invoiceId');
+        if (urlInvoiceId && unpaid.some((i: Invoice) => i.invoiceID === urlInvoiceId)) {
+          setSelectedInvoiceID(urlInvoiceId);
+        }
+      } catch (err) {
+        console.error("Error fetching invoices:", err);
+        toast.error("Failed to load pending invoices");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInvoices();
+  }, [location.search]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -46,248 +86,268 @@ export function CustomerPayment() {
     }
   };
 
-  const handleSubmit = () => {
-    setShowSuccessModal(true);
+  const handleSubmit = async () => {
+    console.log("Submit clicked", { selectedInvoiceID, transactionId, hasFile: !!uploadedFile });
+    
+    if (!selectedInvoiceID || !transactionId || !uploadedFile) {
+      toast.error("Please fill all required fields and upload proof");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const formData = new FormData();
+      formData.append('paymentMethod', paymentMethod);
+      formData.append('transactionID', transactionId);
+      formData.append('notes', notes);
+      formData.append('paymentProof', uploadedFile);
+
+      console.log("Sending request to backend...");
+      const response = await axios.post(`http://localhost:5900/api/invoices/${selectedInvoiceID}/payment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      console.log("Backend response:", response.data);
+
+      setShowSuccessModal(true);
+    } catch (err: any) {
+      console.error("Payment submission error:", err);
+      toast.error(err.response?.data?.message || "Failed to submit payment details");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
-    setSelectedInvoice('');
-    setPaymentMethod('bank');
+    setSelectedInvoiceID('');
+    setPaymentMethod('online');
     setTransactionId('');
     setNotes('');
     setUploadedFile(null);
   };
 
+  const selectedInvoiceData = invoices.find(i => i.invoiceID === selectedInvoiceID);
+
   return (
     <CustomerLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 p-8 text-white shadow-modern-lg">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
               <CreditCard className="w-5 h-5" />
-              <span className="text-blue-100">Payment Processing</span>
+              <span className="text-blue-100 uppercase tracking-wider text-xs font-bold">Secure Settlement</span>
             </div>
-            <h1 className="text-3xl mb-2">Payment</h1>
-            <p className="text-blue-100">Submit payments for your invoices</p>
+            <h1 className="text-3xl mb-2">Complete Payment</h1>
+            <p className="text-blue-100">Upload your proof of payment for verification</p>
           </div>
         </div>
 
-        {/* Pending Invoices */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-blue-600" />
-              Pending Invoices
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              {pendingInvoices.map((invoice) => (
-                <div key={invoice.id} className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200 flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-900">{invoice.id}</p>
-                    <p className="text-sm text-slate-600">Order: {invoice.orderRef}</p>
-                    <p className="text-sm text-slate-600">Due: {invoice.dueDate}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl text-yellow-900">${invoice.amount.toLocaleString()}</p>
-                    <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 mt-1">
-                      <AlertCircle className="w-3 h-3 mr-1" />
-                      Pending
-                    </Badge>
-                  </div>
+        {/* Pending Invoices Quick View */}
+        {!isLoading && invoices.length > 0 && !selectedInvoiceID && (
+          <Card className="modern-card border-0 shadow-modern-lg">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-widest">Awaiting Payment</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {invoices.map((inv) => (
+                <div 
+                  key={inv._id} 
+                  className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer transition-all"
+                  onClick={() => setSelectedInvoiceID(inv.invoiceID)}
+                >
+                  <p className="font-bold text-slate-900">{inv.invoiceID}</p>
+                  <p className="text-2xl font-black text-blue-600 my-2">LKR {inv.total.toLocaleString()}</p>
+                  <p className="text-xs text-slate-500">Order: {inv.orderID}</p>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Payment Form */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-blue-600" />
-              Submit Payment
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            <div>
-              <Label>Select Invoice *</Label>
-              <Select value={selectedInvoice} onValueChange={setSelectedInvoice}>
-                <SelectTrigger className="mt-1 border-slate-200">
-                  <SelectValue placeholder="Choose invoice to pay..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {pendingInvoices.map((invoice) => (
-                    <SelectItem key={invoice.id} value={invoice.id}>
-                      {invoice.id} - ${invoice.amount.toLocaleString()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedInvoice && (
-              <>
-                <div className="p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-slate-600">Invoice ID</p>
-                      <p className="text-slate-900">{selectedInvoice}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Amount to Pay</p>
-                      <p className="text-2xl text-blue-900">
-                        ${pendingInvoices.find(i => i.id === selectedInvoice)?.amount.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Payment Method *</Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger className="mt-1 border-slate-200">
-                      <SelectValue />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="modern-card border-0 shadow-modern-lg">
+              <CardHeader className="border-b border-slate-50">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  Payment Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-slate-700 font-bold">Select Invoice to Pay</Label>
+                  <Select value={selectedInvoiceID} onValueChange={setSelectedInvoiceID}>
+                    <SelectTrigger className="border-slate-200 h-12">
+                      <SelectValue placeholder="Choose an unpaid invoice..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bank">Bank Transfer</SelectItem>
-                      <SelectItem value="credit">Credit Card</SelectItem>
-                      <SelectItem value="online">Online Payment</SelectItem>
+                      {invoices.map((inv) => (
+                        <SelectItem key={inv._id} value={inv.invoiceID}>
+                          {inv.invoiceID} — LKR {inv.total.toLocaleString()}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div>
-                  <Label>Transaction ID *</Label>
-                  <Input
-                    placeholder="Enter transaction reference number"
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    className="mt-1 border-slate-200"
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold">Payment Method</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger className="border-slate-200 h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="online">Online Bank Transfer</SelectItem>
+                        <SelectItem value="cheque">Cheque Deposit</SelectItem>
+                        <SelectItem value="other">Other Method</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label>Notes (Optional)</Label>
-                  <Textarea
-                    placeholder="Add any additional notes..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="mt-1 border-slate-200"
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <Label>Upload Payment Proof *</Label>
-                  <div className="mt-2 border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all">
-                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-600 mb-2">Click to upload or drag and drop</p>
-                    <p className="text-xs text-slate-500 mb-3">PDF, PNG, JPG (Max 5MB)</p>
-                    <input
-                      type="file"
-                      id="payment-proof"
-                      className="hidden"
-                      accept=".pdf,.png,.jpg,.jpeg"
-                      onChange={handleFileUpload}
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold">Transaction/Reference ID</Label>
+                    <Input
+                      placeholder="e.g. TXN123456789"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      className="border-slate-200 h-12"
                     />
-                    <label htmlFor="payment-proof">
-                      <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={() => document.getElementById('payment-proof')?.click()}>
-                        Choose File
-                      </Button>
-                    </label>
-                    {uploadedFile && (
-                      <div className="mt-3 flex items-center justify-center gap-2 text-sm text-blue-700">
-                        <FileText className="w-4 h-4" />
-                        {uploadedFile.name}
-                      </div>
-                    )}
                   </div>
                 </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Actions */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 justify-end">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className="border-slate-300 hover:bg-slate-50"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Reset
-              </Button>
-              <Button
-                variant="outline"
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save as Draft
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!selectedInvoice || !transactionId || !uploadedFile}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg disabled:opacity-50"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Submit Payment
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-2">
+                  <Label className="text-slate-700 font-bold">Notes</Label>
+                  <Textarea
+                    placeholder="Any additional information about this payment..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="border-slate-200 min-h-[100px]"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="modern-card border-0 shadow-modern-lg">
+              <CardHeader className="border-b border-slate-50">
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-blue-600" />
+                  Proof of Payment
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div 
+                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all ${
+                    uploadedFile ? 'border-green-300 bg-green-50/30' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    id="file-upload"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    accept="image/*,.pdf"
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    {uploadedFile ? (
+                      <div className="space-y-2">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                          <CheckCircle className="w-8 h-8 text-green-600" />
+                        </div>
+                        <p className="font-bold text-slate-900">{uploadedFile.name}</p>
+                        <Button variant="outline" size="sm" onClick={(e) => { e.preventDefault(); setUploadedFile(null); }}>
+                          Change File
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
+                          <Upload className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-slate-900">Upload Receipt or Cheque Photo</p>
+                          <p className="text-slate-500">Drag and drop or click to browse</p>
+                        </div>
+                        <p className="text-xs text-slate-400">JPG, PNG or PDF up to 10MB</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="modern-card border-0 shadow-modern-lg bg-slate-900 text-white sticky top-6">
+              <CardHeader>
+                <CardTitle className="text-slate-400 text-xs uppercase tracking-widest">Payment Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {selectedInvoiceData ? (
+                  <>
+                    <div className="pb-6 border-b border-white/10">
+                      <p className="text-sm text-slate-400 mb-1">Total Amount</p>
+                      <p className="text-4xl font-black">LKR {selectedInvoiceData.total.toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Invoice ID</span>
+                        <span className="font-mono">{selectedInvoiceData.invoiceID}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Order Ref</span>
+                        <span>{selectedInvoiceData.orderID}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Due Date</span>
+                        <span>{selectedInvoiceData.due_date ? new Date(selectedInvoiceData.due_date).toLocaleDateString() : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-10 text-center">
+                    <AlertCircle className="w-8 h-8 text-slate-500 mx-auto mb-3" />
+                    <p className="text-slate-400 italic">Select an invoice to view payment summary</p>
+                  </div>
+                )}
+                
+                <Button 
+                  className="w-full bg-blue-600 hover:bg-blue-700 h-14 text-lg font-bold shadow-xl"
+                  disabled={!selectedInvoiceID || !transactionId || !uploadedFile || isSubmitting}
+                  onClick={handleSubmit}
+                >
+                  {isSubmitting ? (
+                    <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Processing...</>
+                  ) : (
+                    <><Send className="w-5 h-5 mr-2" /> Submit Payment Proof</>
+                  )}
+                </Button>
+                <p className="text-[10px] text-center text-slate-500">
+                  By clicking submit, you confirm that the attached proof is authentic and matches the transaction details provided.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
         <DialogContent className="border-0 shadow-2xl max-w-md">
-          <div className="text-center py-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-10 h-10 text-green-600" />
+          <div className="text-center py-8">
+            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-12 h-12 text-green-600" />
             </div>
-            <DialogTitle className="text-2xl mb-2">Payment Submitted!</DialogTitle>
-            <p className="text-slate-600 mb-6">
-              Your payment has been submitted for verification. You will receive a confirmation shortly.
+            <DialogTitle className="text-3xl font-black text-slate-900 mb-2">Success!</DialogTitle>
+            <p className="text-slate-600 mb-8">
+              Your payment proof has been submitted successfully. Our team will verify it and update your invoice status shortly.
             </p>
-            <div className="bg-blue-50 rounded-xl p-4 mb-6 text-left">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Invoice:</span>
-                  <span className="text-slate-900">{selectedInvoice}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Amount:</span>
-                  <span className="text-slate-900">
-                    ${pendingInvoices.find(i => i.id === selectedInvoice)?.amount.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Method:</span>
-                  <span className="text-slate-900 capitalize">{paymentMethod}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Status:</span>
-                  <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-                    Pending Verification
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <Button
+            <Button 
+              className="w-full bg-slate-900 hover:bg-slate-800 h-12 text-lg"
               onClick={() => {
                 setShowSuccessModal(false);
-                handleReset();
+                navigate('/customer/invoices');
               }}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
             >
-              Done
+              Back to Invoices
             </Button>
           </div>
         </DialogContent>

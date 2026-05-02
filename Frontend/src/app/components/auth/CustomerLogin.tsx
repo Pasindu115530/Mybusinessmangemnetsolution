@@ -49,6 +49,7 @@ export function CustomerLogin() {
 
         // 3. Store role
         localStorage.setItem("userRole", "customer");
+        localStorage.setItem("userEmail", email);
 
         // 4. Store customID separately for convenience
         const customID = userData?.customID || userData?.customerId;

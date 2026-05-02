@@ -34,7 +34,15 @@ export const getOverDueInvoiceCountByCustomer = async (req, res) => {
 export const getInvoicesByCustomer = async (req, res) => {
     try {
         const email = req.params.email;
-        const invoices = await Invoice.find({ email, invoiceType: "customer" }).sort({ date: -1 });
+        if (!email) {
+            return res.json([]);
+        }
+        // Escape email for regex and use case-insensitive match
+        const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const invoices = await Invoice.find({ 
+            email: { $regex: new RegExp(`^${escapedEmail}$`, "i") }, 
+            invoiceType: "customer" 
+        }).sort({ date: -1 });
         res.json(invoices);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -53,24 +61,65 @@ export const getAllInvoices = async (req, res) => {
 export const createPaymentForInvoice = async (req, res) => {
     try {
         const invoiceID = req.params.invoiceID;
-        const { paymentMethod, transactionID, paymentProof } = req.body;
+        const { paymentMethod, transactionID, notes } = req.body;
+        console.log("Processing payment for:", invoiceID, { paymentMethod, transactionID });
+        
+        // Use req.file.path if it exists, otherwise use what was sent in body (for fallback)
+        const paymentProof = req.file ? req.file.path : (req.body.paymentProof || "");
+        console.log("File received:", req.file ? req.file.originalname : "No file via multer");
 
         const invoice = await Invoice.findOne({ invoiceID });
 
         if (!invoice) {
+            console.error("Invoice not found:", invoiceID);
             return res.status(404).json({ message: "Invoice not found" });
         }
 
         invoice.paymentMethod = paymentMethod;
         invoice.transactionID = transactionID;
         invoice.paymentProof = paymentProof;
-        invoice.status = "paid"; // Automatically mark as paid for now or wait for verification? 
-        // Better to wait for verification, but usually users want immediate feedback.
-        // I'll keep it as is or maybe "pending-verification".
+        invoice.notes = notes || invoice.notes;
+        invoice.status = "pending-verification"; 
+        invoice.payment_status = "unpaid"; // Still unpaid until admin verifies
 
         await invoice.save();
+        console.log("Payment proof saved for invoice:", invoiceID);
 
-        res.json({ message: "Payment details updated successfully" });
+        res.json({ message: "Payment proof submitted successfully for verification" });
+    } catch (error) {
+        console.error("Payment submission error:", error.message);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const acceptPayment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await Invoice.findById(id);
+        if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+        invoice.status = "paid";
+        invoice.payment_status = "paid";
+        await invoice.save();
+
+        res.json({ message: "Payment accepted successfully", invoice });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const rejectPayment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await Invoice.findById(id);
+        if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+        invoice.status = "unpaid";
+        invoice.payment_status = "unpaid";
+        invoice.notes = (invoice.notes || "") + "\nAdmin: Payment rejected. Please re-upload proof.";
+        await invoice.save();
+
+        res.json({ message: "Payment rejected", invoice });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -274,7 +323,7 @@ export const createCustomerInvoice = async (req, res) => {
         const invoice = new Invoice({
             invoiceID: `INV-${Date.now()}`,
             orderID: order.orderID,
-            email: order.email,
+            email: order.email.toLowerCase(),
             date: new Date(),
             total: grandTotal,
             status: "unpaid",

@@ -1,4 +1,5 @@
 import express from "express"
+import fs from 'fs'
 import mongoose from "mongoose"
 import jwt from "jsonwebtoken"
 // import productRouter from "./routes/productRouter.js"
@@ -37,8 +38,13 @@ const app = express()
 
 app.use(cors())
 
-
 app.use(express.json())
+app.use('/uploads', express.static('uploads'))
+
+// Ensure uploads directory exists
+if (!fs.existsSync('uploads')) {
+    fs.mkdirSync('uploads');
+}
 
 // const orderRoutes = require("./routes/orderRouter.js");
 // const requirementRoutes = require("./routes/requirementRouter.js");

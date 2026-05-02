@@ -13,6 +13,7 @@ export const getOrdersByCustomerId = async (req, res) => {
         const mappedOrders = orders.map(o => ({
             _id: o._id,
             orderID: o.orderID,
+            email: o.email,
             quotationRef: o.quotationRef || null,
             orderDate: o.date,
             totalAmount: o.total || o.totalCost,
