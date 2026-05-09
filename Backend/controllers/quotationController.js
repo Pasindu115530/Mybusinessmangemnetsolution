@@ -2,6 +2,7 @@ import Quotation from "../models/Quotation.js";
 import Supplier from "../models/Supplier.js";
 import Requirement from "../models/Requirement.js";
 import User from "../models/User.js";
+import Order from "../models/Order.js";
 
 export const getPendingQuotationCount = async (req, res) => {
     try{
@@ -181,7 +182,31 @@ export const acceptQuotation = async (req, res) => {
         }  
         quotation.status = "accepted";
         await quotation.save();
-        res.status(200).json({ success: true, message: "Quotation accepted successfully" });
+
+        // If it's a supplier quotation, automatically create a Purchase Order (Order of type 'purchase')
+        if (quotation.quotationType === "supplier") {
+            const purchaseOrder = new Order({
+                orderID: `PO-${Date.now()}`,
+                quotationRef: quotation.sq_id || quotation.quotationID,
+                supplierEmail: quotation.supplierEmail,
+                name: "Hardware Store", // Admin's business name
+                email: quotation.supplierEmail,
+                items: quotation.items.map(item => ({
+                    productID: item.productID,
+                    name: item.name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    unit: item.unit
+                })),
+                total: quotation.total,
+                status: "pending",
+                orderType: "purchase",
+                date: new Date()
+            });
+            await purchaseOrder.save();
+        }
+
+        res.status(200).json({ success: true, message: "Quotation accepted and Purchase Order created successfully" });
          
     } catch (err) {
         res.status(500).json({

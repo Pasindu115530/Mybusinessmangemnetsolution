@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { AdminLayout } from './AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -9,33 +10,30 @@ import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Checkbox } from '../ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { toast } from 'sonner';
 import {
   FileText,
   Search,
   Plus,
   Trash2,
-  Upload,
   CheckCircle,
   X,
-  Star,
   Phone,
   Mail,
-  Building2,
   Calendar,
   Hash,
   Send,
   Save,
-  Sparkles,
   Eye,
-  Copy,
   XCircle,
-  Filter,
   Users,
   Package,
   Clock,
-  AlertCircle
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
 interface RequirementRow {
@@ -49,79 +47,62 @@ interface RequirementRow {
 
 interface SupplierData {
   id: string;
-  name: string;
-  contact: string;
+  fullName: string;
+  contactNumber: string;
   email: string;
-  rating: number;
-  status: 'active' | 'inactive';
+  status: string;
 }
 
 interface PreviousRequest {
   id: string;
-  date: string;
-  suppliers: string[];
-  itemCount: number;
-  expiryDate: string;
-  status: 'draft' | 'sent' | 'partially-responded' | 'completed';
+  requirementId: string;
+  createdAt: string;
+  itemSummary: string;
+  status: string;
 }
 
-const suppliers: SupplierData[] = [
-  { id: 'SUP001', name: 'Tech Supplies Inc', contact: '+1 234 567 8900', email: 'contact@techsupplies.com', rating: 4.8, status: 'active' },
-  { id: 'SUP002', name: 'Global Trade Partners', contact: '+1 234 567 8901', email: 'info@globaltrade.com', rating: 4.5, status: 'active' },
-  { id: 'SUP003', name: 'Premium Materials Co', contact: '+1 234 567 8902', email: 'sales@premiummaterials.com', rating: 4.9, status: 'active' },
-  { id: 'SUP004', name: 'Swift Logistics Ltd', contact: '+1 234 567 8903', email: 'hello@swiftlogistics.com', rating: 4.3, status: 'active' },
-  { id: 'SUP005', name: 'Quality Distributors', contact: '+1 234 567 8904', email: 'sales@qualitydist.com', rating: 4.6, status: 'active' },
-  { id: 'SUP006', name: 'Mega Wholesale Corp', contact: '+1 234 567 8905', email: 'orders@megawholesale.com', rating: 4.7, status: 'active' },
-];
-
-const stockItems = [
-  'Product A - Electronics',
-  'Product B - Furniture',
-  'Product C - Textiles',
-  'Product D - Electronics',
-  'Product E - Hardware',
-];
-
-const previousRequests: PreviousRequest[] = [
-  { id: 'RQ-20240115', date: '2024-01-15', suppliers: ['Tech Supplies Inc', 'Global Trade Partners'], itemCount: 3, expiryDate: '2024-01-25', status: 'completed' },
-  { id: 'RQ-20240112', date: '2024-01-12', suppliers: ['Premium Materials Co'], itemCount: 5, expiryDate: '2024-01-22', status: 'sent' },
-  { id: 'RQ-20240110', date: '2024-01-10', suppliers: ['Swift Logistics Ltd', 'Quality Distributors', 'Mega Wholesale Corp'], itemCount: 2, expiryDate: '2024-01-20', status: 'partially-responded' },
-  { id: 'RQ-20240108', date: '2024-01-08', suppliers: ['Tech Supplies Inc'], itemCount: 4, expiryDate: '2024-01-18', status: 'draft' },
-];
-
 export function RequestQuotation() {
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
+  const [previousRequests, setPreviousRequests] = useState<PreviousRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [requirements, setRequirements] = useState<RequirementRow[]>([
     { id: 1, itemName: '', quantity: '', unit: 'units', deliveryDate: '', notes: '' }
   ]);
   const [generalNotes, setGeneralNotes] = useState('');
   const [priority, setPriority] = useState('medium');
   const [expiryDate, setExpiryDate] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('previous');
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const requestId = `RQ-${Date.now().toString().slice(-8)}`;
-  const requestDate = new Date().toISOString().split('T')[0];
-
-  const toggleSupplier = (supplierId: string) => {
-    setSelectedSuppliers(prev =>
-      prev.includes(supplierId)
-        ? prev.filter(id => id !== supplierId)
-        : [...prev, supplierId]
-    );
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const toggleAllSuppliers = () => {
-    if (selectedSuppliers.length === suppliers.length) {
-      setSelectedSuppliers([]);
-    } else {
-      setSelectedSuppliers(suppliers.map(s => s.id));
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [suppliersRes, requestsRes] = await Promise.all([
+        axios.get('http://localhost:5900/api/suppliers/all', { headers: getAuthHeader() }),
+        axios.get('http://localhost:5900/api/suppliers/supplier-requirements/my', { headers: getAuthHeader() }) // Admin can also view all
+      ]);
+      setSuppliers(suppliersRes.data.suppliers || []);
+      setPreviousRequests(requestsRes.data.requirements || []);
+    } catch (err: any) {
+      toast.error('Failed to load data');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addRequirementRow = () => {
     setRequirements([
@@ -142,213 +123,145 @@ export function RequestQuotation() {
     ));
   };
 
-  const handleFileUpload = (files: FileList | null) => {
-    if (files) {
-      setUploadedFiles([...uploadedFiles, ...Array.from(files)]);
+  const handleSubmit = async () => {
+    if (!selectedSupplierId) {
+      toast.error('Please select a supplier first');
+      return;
     }
-  };
 
-  const removeFile = (index: number) => {
-    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
-  };
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        supplierId: selectedSupplierId,
+        items: requirements.map(r => ({
+          itemName: r.itemName,
+          quantity: parseFloat(r.quantity),
+          unit: r.unit,
+          deliveryDate: r.deliveryDate || undefined,
+          notes: r.notes
+        }))
+      };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+      await axios.post('http://localhost:5900/api/suppliers/supplier-requirements', payload, {
+        headers: getAuthHeader()
+      });
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
-
-  const handleSubmit = () => {
-    setShowSuccessModal(true);
-  };
-
-  const handleReset = () => {
-    setSelectedSuppliers([]);
-    setRequirements([{ id: 1, itemName: '', quantity: '', unit: 'units', deliveryDate: '', notes: '' }]);
-    setGeneralNotes('');
-    setPriority('medium');
-    setExpiryDate('');
-    setUploadedFiles([]);
+      setShowSuccessModal(true);
+      fetchData();
+      setRequirements([{ id: 1, itemName: '', quantity: '', unit: 'units', deliveryDate: '', notes: '' }]);
+      setSelectedSupplierId('');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to submit request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'sent':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'partially-responded':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'draft':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-3 h-3 mr-1" />;
-      case 'sent':
-        return <Send className="w-3 h-3 mr-1" />;
-      case 'partially-responded':
-        return <Clock className="w-3 h-3 mr-1" />;
-      case 'draft':
-        return <FileText className="w-3 h-3 mr-1" />;
-      default:
-        return null;
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'bg-green-100 text-green-700 border-green-200';
+      case 'quoted': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   const filteredRequests = previousRequests.filter(request => {
-    const matchesSearch = request.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const q = searchQuery.toLowerCase();
+    return (
+      (request.requirementId || '').toLowerCase().includes(q) ||
+      (request.itemSummary || '').toLowerCase().includes(q)
+    );
   });
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        {/* Breadcrumb and Header */}
-        <div>
-          <div className="flex items-center gap-2 text-sm text-slate-600 mb-3">
-            <span>Admin</span>
-            <span>/</span>
-            <span>Supplier Management</span>
-            <span>/</span>
-            <span className="text-purple-600">Request Quotation</span>
-          </div>
-          
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-700 p-8 text-white shadow-modern-lg">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="w-5 h-5" />
-                <span className="text-purple-100">Supplier Management</span>
-              </div>
-              <h1 className="text-3xl mb-2">Request Quotation from Supplier</h1>
-              <p className="text-purple-100">Manage quotation requests and send requirements to multiple suppliers</p>
+      <div className="space-y-6 max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-8 text-white shadow-modern-lg">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5 text-violet-200" />
+              <span className="text-violet-100 uppercase tracking-widest text-xs font-bold">Supplier Portal Connect</span>
             </div>
+            <h1 className="text-3xl mb-2 font-black">Request Quotations</h1>
+            <p className="text-violet-100 opacity-90">Broadcast your requirements to verified suppliers and receive competitive bids</p>
           </div>
         </div>
 
-        {/* Tabs for Previous Requests and New Request */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-slate-100">
-            <TabsTrigger value="previous" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-              <FileText className="w-4 h-4 mr-2" />
-              Previous Requests
+          <TabsList className="bg-slate-100 p-1 rounded-xl">
+            <TabsTrigger value="previous" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-purple-600 font-bold">
+              History
             </TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-              <Plus className="w-4 h-4 mr-2" />
-              Create New
+            <TabsTrigger value="new" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-purple-600 font-bold">
+              New Request
             </TabsTrigger>
           </TabsList>
 
-          {/* Section 1: Previous Quotation Requests */}
           <TabsContent value="previous" className="mt-6">
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+              <CardHeader className="bg-slate-50/80 border-b border-slate-100">
                 <div className="flex items-center justify-between flex-wrap gap-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-purple-600" />
-                    Previous Quotation Requests
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-purple-600" />
+                    Request History
                   </CardTitle>
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
-                        placeholder="Search by ID..."
+                        placeholder="Search ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 w-64 border-slate-200"
+                        className="pl-9 w-64 border-slate-200 rounded-xl"
                       />
                     </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-48 border-slate-200">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="sent">Sent</SelectItem>
-                        <SelectItem value="partially-responded">Partially Responded</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Button variant="outline" size="sm" onClick={fetchData} className="h-10 w-10 p-0 rounded-xl">
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-6">
-                <div className="overflow-hidden rounded-xl border border-slate-200">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead>Request ID</TableHead>
-                        <TableHead>Request Date</TableHead>
-                        <TableHead>Suppliers Sent To</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Expiry Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                      <TableRow className="bg-slate-50/30 hover:bg-slate-50/30 border-0">
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 pl-6">ID</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Date</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Requirements</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-center">Status</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-right pr-6">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRequests.map((request) => (
-                        <TableRow key={request.id} className="hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="text-slate-900">{request.id}</TableCell>
-                          <TableCell className="text-slate-600">{request.date}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="modern-badge">
-                                {request.suppliers.length} Suppliers
+                      {isLoading ? (
+                        <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600" /></TableCell></TableRow>
+                      ) : filteredRequests.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400 italic">No requests discovered.</TableCell></TableRow>
+                      ) : (
+                        filteredRequests.map((request) => (
+                          <TableRow key={request.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0 group">
+                            <TableCell className="pl-6 py-4 font-mono font-bold text-slate-600 group-hover:text-purple-600">{request.requirementId}</TableCell>
+                            <TableCell className="py-4 text-slate-500 text-sm">{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="py-4 max-w-xs truncate font-medium text-slate-900">{request.itemSummary}</TableCell>
+                            <TableCell className="py-4 text-center">
+                              <Badge className={`${getStatusColor(request.status)} border capitalize px-3 h-6 text-[10px] font-bold`}>
+                                {request.status}
                               </Badge>
-                              <div className="group relative">
-                                <AlertCircle className="w-4 h-4 text-slate-400 cursor-help" />
-                                <div className="absolute left-0 top-6 hidden group-hover:block z-10 bg-slate-900 text-white text-xs rounded-lg p-3 w-64 shadow-xl">
-                                  <div className="space-y-1">
-                                    {request.suppliers.map((sup, idx) => (
-                                      <div key={idx}>• {sup}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-slate-900">{request.itemCount} items</TableCell>
-                          <TableCell className="text-slate-600">{request.expiryDate}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(request.status)}>
-                              {getStatusIcon(request.status)}
-                              {request.status.replace('-', ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm" className="hover:bg-purple-50 hover:text-purple-600">
+                            </TableCell>
+                            <TableCell className="py-4 text-right pr-6">
+                              <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-slate-200 hover:bg-purple-50 hover:text-purple-600">
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-blue-50 hover:text-blue-600">
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -356,442 +269,192 @@ export function RequestQuotation() {
             </Card>
           </TabsContent>
 
-          {/* Create New Request Tab */}
           <TabsContent value="new" className="mt-6 space-y-6">
-            {/* Section 2: Supplier Selection (Multi-Select) */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Select Suppliers
-                </CardTitle>
-                <p className="text-sm text-slate-600 mt-1">Choose one or more suppliers to send requirements</p>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  {/* Select All Option */}
-                  <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border-2 border-purple-200">
-                    <Checkbox
-                      checked={selectedSuppliers.length === suppliers.length}
-                      onCheckedChange={toggleAllSuppliers}
-                      id="select-all"
-                    />
-                    <Label htmlFor="select-all" className="text-purple-900 cursor-pointer">
-                      Select All Suppliers ({suppliers.length})
-                    </Label>
-                  </div>
-
-                  {/* Supplier List */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {suppliers.map((supplier) => (
-                      <div
-                        key={supplier.id}
-                        className={`p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
-                          selectedSuppliers.includes(supplier.id)
-                            ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-300 shadow-md'
-                            : 'bg-white border-slate-200 hover:border-purple-200 hover:shadow-sm'
-                        }`}
-                        onClick={() => toggleSupplier(supplier.id)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            checked={selectedSuppliers.includes(supplier.id)}
-                            onCheckedChange={() => toggleSupplier(supplier.id)}
-                            id={supplier.id}
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <Label htmlFor={supplier.id} className="text-slate-900 cursor-pointer">
-                                {supplier.name}
-                              </Label>
-                              <Badge className={supplier.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}>
-                                {supplier.status}
-                              </Badge>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Phone className="w-3 h-3" />
-                                {supplier.contact}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Mail className="w-3 h-3" />
-                                {supplier.email}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                <span className="text-slate-900">{supplier.rating}</span>
-                                <span>/ 5.0</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Selected Suppliers Summary */}
-                  {selectedSuppliers.length > 0 && (
-                    <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border-2 border-purple-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle className="w-5 h-5 text-purple-600" />
-                        <span className="text-purple-900">
-                          {selectedSuppliers.length} Supplier{selectedSuppliers.length > 1 ? 's' : ''} Selected
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedSuppliers.map(id => {
-                          const supplier = suppliers.find(s => s.id === id);
-                          return supplier ? (
-                            <Badge key={id} className="bg-purple-600 text-white">
-                              {supplier.name}
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
+            {/* New Request Form */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                  <CardHeader className="bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                      <Package className="w-4 h-4 text-purple-600" />
+                      Line Items
+                    </CardTitle>
+                    <Button onClick={addRequirementRow} variant="outline" size="sm" className="rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50 font-bold">
+                      <Plus className="w-4 h-4 mr-2" /> Add Item
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-slate-50/30 border-b border-slate-100">
+                          <tr>
+                            <th className="py-3 pl-6 text-left text-[10px] font-black uppercase text-slate-400">Item Name</th>
+                            <th className="py-3 text-left text-[10px] font-black uppercase text-slate-400">Qty</th>
+                            <th className="py-3 text-left text-[10px] font-black uppercase text-slate-400">Unit</th>
+                            <th className="py-3 pr-6 text-right text-[10px] font-black uppercase text-slate-400">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {requirements.map((req) => (
+                            <tr key={req.id} className="border-b last:border-0 group">
+                              <td className="py-4 pl-6">
+                                <Input
+                                  placeholder="What do you need?"
+                                  value={req.itemName}
+                                  onChange={(e) => updateRequirement(req.id, 'itemName', e.target.value)}
+                                  className="border-slate-200 rounded-lg h-9 bg-slate-50/50 focus:bg-white"
+                                />
+                              </td>
+                              <td className="py-4 w-24">
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={req.quantity}
+                                  onChange={(e) => updateRequirement(req.id, 'quantity', e.target.value)}
+                                  className="border-slate-200 rounded-lg h-9"
+                                />
+                              </td>
+                              <td className="py-4 w-32">
+                                <Select value={req.unit} onValueChange={(v) => updateRequirement(req.id, 'unit', v)}>
+                                  <SelectTrigger className="border-slate-200 rounded-lg h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="units">Units</SelectItem>
+                                    <SelectItem value="kg">KG</SelectItem>
+                                    <SelectItem value="m">Meters</SelectItem>
+                                    <SelectItem value="pcs">Pieces</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-4 pr-6 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeRequirementRow(req.id)}
+                                  disabled={requirements.length === 1}
+                                  className="text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg h-8 w-8 p-0"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
 
-            {/* Section 3: Requirements Request Form */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-purple-600" />
-                    Product Requirements
-                  </CardTitle>
-                  <Button
-                    onClick={addRequirementRow}
-                    size="sm"
-                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-md"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Item
-                  </Button>
-                </div>
-                <p className="text-sm text-slate-600 mt-1">These requirements will be sent to all selected suppliers</p>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left pb-3 text-sm text-slate-600 min-w-[200px]">Item Name</th>
-                        <th className="text-left pb-3 text-sm text-slate-600 min-w-[120px]">Quantity</th>
-                        <th className="text-left pb-3 text-sm text-slate-600 min-w-[120px]">Unit</th>
-                        <th className="text-left pb-3 text-sm text-slate-600 min-w-[150px]">Delivery Date</th>
-                        <th className="text-left pb-3 text-sm text-slate-600 min-w-[200px]">Notes</th>
-                        <th className="text-left pb-3 text-sm text-slate-600 w-[80px]">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requirements.map((req, index) => (
-                        <tr key={req.id} className="border-b border-slate-100">
-                          <td className="py-3 pr-2">
-                            <Select
-                              value={req.itemName}
-                              onValueChange={(value) => updateRequirement(req.id, 'itemName', value)}
-                            >
-                              <SelectTrigger className="border-slate-200">
-                                <SelectValue placeholder="Select item..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {stockItems.map((item) => (
-                                  <SelectItem key={item} value={item}>
-                                    {item}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-3 pr-2">
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={req.quantity}
-                              onChange={(e) => updateRequirement(req.id, 'quantity', e.target.value)}
-                              className="border-slate-200"
-                            />
-                          </td>
-                          <td className="py-3 pr-2">
-                            <Select
-                              value={req.unit}
-                              onValueChange={(value) => updateRequirement(req.id, 'unit', value)}
-                            >
-                              <SelectTrigger className="border-slate-200">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="units">Units</SelectItem>
-                                <SelectItem value="kg">Kilograms</SelectItem>
-                                <SelectItem value="m">Meters</SelectItem>
-                                <SelectItem value="boxes">Boxes</SelectItem>
-                                <SelectItem value="pieces">Pieces</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-3 pr-2">
-                            <Input
-                              type="date"
-                              value={req.deliveryDate}
-                              onChange={(e) => updateRequirement(req.id, 'deliveryDate', e.target.value)}
-                              className="border-slate-200"
-                            />
-                          </td>
-                          <td className="py-3 pr-2">
-                            <Input
-                              placeholder="Additional notes..."
-                              value={req.notes}
-                              onChange={(e) => updateRequirement(req.id, 'notes', e.target.value)}
-                              className="border-slate-200"
-                            />
-                          </td>
-                          <td className="py-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeRequirementRow(req.id)}
-                              disabled={requirements.length === 1}
-                              className="text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-30"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                  <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Additional Context</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <Textarea
+                      placeholder="Special instructions, delivery timelines, or technical specifications..."
+                      value={generalNotes}
+                      onChange={(e) => setGeneralNotes(e.target.value)}
+                      className="min-h-32 border-slate-200 rounded-xl resize-none"
+                    />
+                  </CardContent>
+                </Card>
+              </div>
 
-            {/* Section 4: Additional Information */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-600" />
-                  Additional Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-                <div>
-                  <Label>General Message to Suppliers</Label>
-                  <Textarea
-                    placeholder="Add any additional requirements, specifications, or special instructions for all suppliers..."
-                    value={generalNotes}
-                    onChange={(e) => setGeneralNotes(e.target.value)}
-                    className="mt-1 min-h-[120px] border-slate-200"
-                  />
-                </div>
-
-                <div>
-                  <Label className="mb-3 block">Upload Supporting Documents</Label>
-                  <div
-                    className={`border-2 border-dashed rounded-xl p-8 transition-all duration-300 ${
-                      isDragging
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-slate-300 hover:border-purple-400 hover:bg-purple-50/50'
-                    }`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                  >
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Upload className="w-8 h-8 text-purple-600" />
-                      </div>
-                      <p className="text-slate-700 mb-2">Drag and drop files here, or click to browse</p>
-                      <p className="text-sm text-slate-500 mb-4">Supports PDF, PNG, JPG (Max 10MB)</p>
-                      <input
-                        type="file"
-                        id="file-upload"
-                        className="hidden"
-                        multiple
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={(e) => handleFileUpload(e.target.files)}
+              <div className="space-y-6">
+                <Card className="modern-card border-0 shadow-modern-lg overflow-hidden bg-slate-900 text-white">
+                  <CardHeader className="border-b border-white/10">
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Configuration</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <div>
+                      <Label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Target Supplier *</Label>
+                      <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white rounded-lg h-10">
+                          <SelectValue placeholder="Select a supplier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.fullName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Response Deadline</Label>
+                      <Input
+                        type="date"
+                        value={expiryDate}
+                        onChange={(e) => setExpiryDate(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white rounded-lg h-10"
                       />
-                      <label htmlFor="file-upload">
-                        <Button type="button" variant="outline" className="cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Choose Files
-                        </Button>
-                      </label>
                     </div>
-                  </div>
-
-                  {uploadedFiles.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      {uploadedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <FileText className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm text-slate-900">{file.name}</p>
-                              <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(2)} KB</p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(index)}
-                            className="text-red-600 hover:bg-red-50"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
+                    <div>
+                      <Label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Priority Level</Label>
+                      <Select value={priority} onValueChange={setPriority}>
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white rounded-lg h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low Priority</SelectItem>
+                          <SelectItem value="medium">Medium Priority</SelectItem>
+                          <SelectItem value="high">High Priority</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="pt-4">
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || requirements.some(r => !r.itemName || !r.quantity)}
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black uppercase tracking-widest rounded-xl h-12 shadow-xl shadow-purple-900/20"
+                      >
+                        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-4 h-4 mr-2" /> Broadcast Request</>}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Section 5: Request Details */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-purple-600" />
-                  Request Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label className="flex items-center gap-2">
-                      <Hash className="w-4 h-4 text-slate-500" />
-                      Request ID
-                    </Label>
-                    <Input
-                      value={requestId}
-                      readOnly
-                      className="mt-1 bg-slate-50 border-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <Label>Request Date</Label>
-                    <Input
-                      type="date"
-                      value={requestDate}
-                      readOnly
-                      className="mt-1 bg-slate-50 border-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <Label>Quotation Expiry Date</Label>
-                    <Input
-                      type="date"
-                      value={expiryDate}
-                      onChange={(e) => setExpiryDate(e.target.value)}
-                      className="mt-1 border-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <Label>Priority</Label>
-                    <Select value={priority} onValueChange={setPriority}>
-                      <SelectTrigger className="mt-1 border-slate-200">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            Low
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="medium">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                            Medium
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="high">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                            High
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Actions */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardContent className="pt-6">
-                <div className="flex flex-wrap gap-4 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={handleReset}
-                    className="border-slate-300 hover:bg-slate-50"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Reset
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save as Draft
-                  </Button>
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={selectedSuppliers.length === 0}
-                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Send to {selectedSuppliers.length} Supplier{selectedSuppliers.length !== 1 ? 's' : ''}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                  <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Suppliers Reach</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center shrink-0">
+                        <Users className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-900">{suppliers.length} Verified Suppliers</p>
+                        <p className="text-xs text-slate-500">Global reach across all partners</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed italic">
+                      This request will be visible to all active suppliers in the portal. They will be notified to submit their quotations based on these requirements.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="border-0 shadow-2xl max-w-md">
-          <div className="text-center py-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-10 h-10 text-green-600" />
+        <DialogContent className="border-0 shadow-2xl max-w-md p-0 overflow-hidden">
+          <div className="bg-slate-900 p-8 text-center text-white">
+            <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <DialogTitle className="text-2xl mb-2">Request Sent Successfully!</DialogTitle>
-            <p className="text-slate-600 mb-6">
-              Your quotation request has been sent to <span className="text-purple-600">{selectedSuppliers.length} supplier{selectedSuppliers.length > 1 ? 's' : ''}</span>.
-            </p>
-            <div className="bg-purple-50 rounded-xl p-4 mb-6 text-left">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-slate-600">Request ID:</span>
-                <span className="text-slate-900">{requestId}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-slate-600">Suppliers:</span>
-                <span className="text-slate-900">{selectedSuppliers.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Status:</span>
-                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                  <Send className="w-3 h-3 mr-1" />
-                  Sent
-                </Badge>
-              </div>
-            </div>
+            <DialogTitle className="text-2xl font-black mb-2">Request Broadcasted!</DialogTitle>
+            <p className="text-slate-400 text-sm">Your requirement has been sent to all verified suppliers. You can track their quotations in the 'History' tab.</p>
+          </div>
+          <div className="p-6">
             <Button
-              onClick={() => {
-                setShowSuccessModal(false);
-                handleReset();
-                setActiveTab('previous');
-              }}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+              onClick={() => { setShowSuccessModal(false); setActiveTab('previous'); }}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold h-12 rounded-xl"
             >
-              View Previous Requests
+              Track History
             </Button>
           </div>
         </DialogContent>

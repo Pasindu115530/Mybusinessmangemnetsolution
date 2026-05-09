@@ -8,7 +8,18 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { FileText, FilePlus, Send, Loader2, XCircle, ClipboardList, Clock, CheckCircle2, ArrowUpRight } from 'lucide-react';
+import { toast } from 'sonner';
+import { 
+  FileText, 
+  FilePlus, 
+  Send, 
+  Loader2, 
+  XCircle, 
+  ClipboardList, 
+  Clock, 
+  CheckCircle2, 
+  ArrowUpRight 
+} from 'lucide-react';
 
 const API = 'http://localhost:5900/api/requirements';
 
@@ -22,10 +33,9 @@ const STATUS_STYLES: Record<string, string> = {
   rejected:    'bg-red-50 text-red-700 border-red-200',
 };
 
-// Human-readable labels for admin side
 const STATUS_LABELS: Record<string, string> = {
   pending:   'Pending',
-  quoted:    'Sent',       // Quotation has been sent to customer
+  quoted:    'Sent',
   accepted:  'Accepted',
   delivered: 'Delivered',
   rejected:  'Rejected',
@@ -41,17 +51,24 @@ export function CustomerRequests() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const fetchAll = async () => {
     try {
       setLoading(true);
+      const headers = getAuthHeader();
       const [reqRes, statsRes] = await Promise.all([
-        axios.get(API),
-        axios.get(`${API}/stats`),
+        axios.get(API, { headers }),
+        axios.get(`${API}/stats`, { headers }),
       ]);
       if (reqRes.data.success) setRequirements(reqRes.data.requirements);
       if (statsRes.data.success) setStats(statsRes.data.stats);
     } catch (e) {
       console.error(e);
+      toast.error("Failed to load customer requirements");
     } finally {
       setLoading(false);
     }
@@ -60,25 +77,24 @@ export function CustomerRequests() {
   useEffect(() => { fetchAll(); }, []);
 
   const handleReject = async (id: string) => {
-    if (!rejectReason.trim()) { alert('Please enter a rejection reason.'); return; }
+    if (!rejectReason.trim()) { toast.error('Please enter a rejection reason.'); return; }
     setRejecting(true);
     try {
-      await axios.patch(`${API}/${id}/status`, { status: 'rejected', rejectReason });
+      await axios.patch(`${API}/${id}/status`, { status: 'rejected', rejectReason }, { headers: getAuthHeader() });
       setRejectingId(null);
       setRejectReason('');
+      toast.success("Requirement rejected");
       await fetchAll();
     } catch (e) {
       console.error(e);
-      alert('Failed to reject requirement.');
+      toast.error('Failed to reject requirement.');
     } finally {
       setRejecting(false);
     }
   };
 
-
   const filtered = activeTab === 'all' ? requirements : requirements.filter(r => r.status === activeTab);
 
-  // --- Stats Boxes සඳහා Data ---
   const statCards = [
     { label: 'Total Received', value: stats.total,      icon: <ClipboardList className="h-6 w-6" />, color: 'bg-blue-50 text-blue-600' },
     { label: 'In Progress',   value: stats.in_progress, icon: <Send className="h-6 w-6" />,        color: 'bg-violet-50 text-violet-600' },
@@ -89,9 +105,9 @@ export function CustomerRequests() {
 
   return (
     <AdminLayout>
-      <div className="space-y-8 pb-10">
+      <div className="space-y-8 pb-10 max-w-7xl mx-auto">
         
-        {/* 1. Header Section */}
+        {/* Header Section */}
         <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-10 text-white shadow-2xl">
           <div className="relative z-10">
             <span className="bg-violet-500/20 text-violet-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-violet-500/30 mb-3 inline-block">Admin Portal</span>
@@ -100,8 +116,8 @@ export function CustomerRequests() {
           </div>
         </div>
 
-        {/* 2. Stats Boxes Section (දැන් මෙය නැවත ඇතුළත් කර ඇත) */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+        {/* Stats Boxes Section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           {statCards.map((s) => (
             <div key={s.label} className="group relative overflow-hidden rounded-3xl bg-white p-6 shadow-sm border border-slate-100 transition-all hover:shadow-md">
               <div className="flex items-center gap-4">
@@ -118,7 +134,7 @@ export function CustomerRequests() {
           ))}
         </div>
 
-        {/* 3. Filter Tabs */}
+        {/* Filter Tabs */}
         <div className="flex flex-wrap gap-2">
           {['all', 'pending', 'quoted', 'delivered'].map((tab) => (
             <button
@@ -133,7 +149,7 @@ export function CustomerRequests() {
           ))}
         </div>
 
-        {/* 4. Table Card */}
+        {/* Table Card */}
         <Card className="rounded-[30px] border-none bg-white shadow-xl overflow-hidden">
           <div className="bg-slate-900 px-8 py-5 flex items-center justify-between">
             <h3 className="text-white font-bold flex items-center gap-2"><ClipboardList className="h-5 w-5 text-violet-400" /> Requirement Log</h3>
@@ -152,8 +168,10 @@ export function CustomerRequests() {
             <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-violet-600 h-8 w-8" /></TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400 italic">No requirements discovered.</TableCell></TableRow>
               ) : filtered.map((req) => (
-                <TableRow key={req.id} className="group hover:bg-slate-50/50 transition-colors">
+                <TableRow key={req.id} className="group hover:bg-slate-50/50 transition-colors border-b last:border-0">
                   <TableCell className="py-5 pl-8 font-bold text-slate-900">{req.requirementId}</TableCell>
                   <TableCell>
                     <div className="text-sm font-bold text-slate-700">{req.customerName}</div>
@@ -167,8 +185,6 @@ export function CustomerRequests() {
                   </TableCell>
                   <TableCell className="text-right pr-8">
                     <div className="flex justify-end gap-2">
-                      
-                      {/* Detailed View Dialog */}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button size="sm" variant="outline" className="rounded-xl border-slate-200 text-slate-500 hover:text-violet-600">
@@ -205,8 +221,7 @@ export function CustomerRequests() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {/* Backend එකෙන් එවන Full Items Array එක Map කිරීම */}
-                                  {req.items && req.items.length > 0 ? req.items.map((item: any, i: number) => (
+                                  {req.items?.map((item: any, i: number) => (
                                     <TableRow key={i}>
                                       <TableCell className="py-4 px-4">
                                         <p className="text-sm font-bold text-slate-800">{item.itemName}</p>
@@ -219,14 +234,11 @@ export function CustomerRequests() {
                                         {item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString() : 'Immediate'}
                                       </TableCell>
                                     </TableRow>
-                                  )) : (
-                                    <TableRow><TableCell colSpan={3} className="text-center py-10 text-slate-400">No items found</TableCell></TableRow>
-                                  )}
+                                  ))}
                                 </TableBody>
                               </Table>
                             </div>
 
-                            {/* Reject Section */}
                             {req.status !== 'rejected' && (
                               <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 p-5 space-y-3">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-red-500 flex items-center gap-1">
@@ -237,67 +249,39 @@ export function CustomerRequests() {
                                     <Textarea
                                       value={rejectReason}
                                       onChange={(e) => setRejectReason(e.target.value)}
-                                      placeholder="Enter reason for rejection (visible to customer)..."
-                                      className="min-h-20 text-sm border-red-200 focus:border-red-400 focus:ring-red-100 resize-none bg-white"
+                                      placeholder="Enter reason for rejection..."
+                                      className="min-h-20 text-sm border-red-200 resize-none bg-white"
                                     />
                                     <div className="flex gap-2 justify-end">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => { setRejectingId(null); setRejectReason(''); }}
-                                        className="rounded-xl border-slate-200 text-slate-500"
-                                      >
-                                        Cancel
-                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={() => { setRejectingId(null); setRejectReason(''); }}>Cancel</Button>
                                       <Button
                                         size="sm"
                                         disabled={rejecting}
                                         onClick={() => handleReject(req.id)}
-                                        className="rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200"
+                                        className="bg-red-600 text-white"
                                       >
-                                        {rejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="h-4 w-4 mr-1" /> Confirm Reject</>}
+                                        Confirm Reject
                                       </Button>
                                     </div>
                                   </>
                                 ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setRejectingId(req.id)}
-                                    className="rounded-xl border-red-300 text-red-600 hover:bg-red-100 w-full"
-                                  >
-                                    <XCircle className="h-4 w-4 mr-1" /> Reject Requirement
-                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => setRejectingId(req.id)} className="border-red-300 text-red-600 w-full">Reject Requirement</Button>
                                 )}
-                              </div>
-                            )}
-
-                            {/* Already rejected notice */}
-                            {req.status === 'rejected' && (
-                              <div className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
-                                <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs font-black text-red-600 uppercase tracking-widest">Rejected</p>
-                                  <p className="text-sm text-red-700 mt-1">{req.rejectReason || 'No reason provided.'}</p>
-                                </div>
                               </div>
                             )}
                           </div>
                         </DialogContent>
                       </Dialog>
 
-                      {/* Create Quotation Button — hidden if rejected */}
                       {req.status !== 'rejected' && (
                         <Button
                           size="sm"
                           onClick={() => navigate('/create-quotation', { state: { requirement: req } })}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
                         >
                           <FilePlus className="h-4 w-4 mr-1" /> Create Quotation
                         </Button>
                       )}
-
-
                     </div>
                   </TableCell>
                 </TableRow>

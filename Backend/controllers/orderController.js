@@ -246,3 +246,193 @@ export const restockRejectedItems = async (req, res) => {
         res.status(500).json({ message: "Error restocking item", error: error.message });
     }
 };
+
+// =============================================================
+//   SUPPLIER-SPECIFIC ORDER FUNCTIONS
+// =============================================================
+
+// GET: All purchase orders for this supplier
+export const getSupplierOrders = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const orders = await Order.find({ supplierEmail, orderType: "purchase" }).sort({ date: -1 });
+        return res.status(200).json({ success: true, orders });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: Single purchase order by ID for this supplier
+export const getSupplierOrderById = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const order = await Order.findOne({ _id: req.params.id, supplierEmail, orderType: "purchase" });
+        if (!order) return res.status(404).json({ message: "Order not found" });
+        return res.status(200).json({ success: true, order });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// PUT: Update purchase order status by supplier
+export const updateSupplierOrderStatus = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const { status } = req.body;
+        const order = await Order.findOneAndUpdate(
+            { _id: req.params.id, supplierEmail, orderType: "purchase" },
+            { status },
+            { new: true }
+        );
+        if (!order) return res.status(404).json({ message: "Order not found" });
+        return res.status(200).json({ success: true, order });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: Supplier order stats (stat cards)
+export const getSupplierOrderStats = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const [total, confirmed, dispatched, delivered] = await Promise.all([
+            Order.countDocuments({ supplierEmail, orderType: "purchase" }),
+            Order.countDocuments({ supplierEmail, orderType: "purchase", status: "confirmed" }),
+            Order.countDocuments({ supplierEmail, orderType: "purchase", status: "dispatched" }),
+            Order.countDocuments({ supplierEmail, orderType: "purchase", status: "delivered" }),
+        ]);
+        return res.status(200).json({ success: true, stats: { total, confirmed, dispatched, delivered } });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: All supplier orders as table (with optional status filter)
+export const getSupplierOrdersTable = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const filter = { supplierEmail, orderType: "purchase" };
+        if (req.query.status) filter.status = req.query.status;
+        const orders = await Order.find(filter).sort({ date: -1 });
+        return res.status(200).json({ success: true, orders });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// PATCH: Supplier acknowledges (confirms) a purchase order
+export const acknowledgeSupplierOrder = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const order = await Order.findOneAndUpdate(
+            { _id: req.params.id, supplierEmail, orderType: "purchase", status: "pending" },
+            { status: "confirmed" },
+            { new: true }
+        );
+        if (!order) return res.status(404).json({ message: "Order not found or already confirmed" });
+        return res.status(200).json({ success: true, message: "Order acknowledged", order });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: Orders ready to dispatch (confirmed, not yet dispatched)
+export const getDispatchOrderList = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const orders = await Order.find({
+            supplierEmail,
+            orderType: "purchase",
+            status: { $in: ["confirmed", "pending"] },
+        }).sort({ date: -1 });
+        return res.status(200).json({ success: true, orders });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: Delivery progress for a specific order
+export const getDeliveryProgress = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const order = await Order.findOne({ _id: req.params.id, supplierEmail, orderType: "purchase" });
+        if (!order) return res.status(404).json({ message: "Order not found" });
+
+        const progress = {
+            totalItems:    order.items.length,
+            dispatchedItems: order.items.filter(i => (i.issuedQuantity || 0) > 0).length,
+            receivedItems: order.items.filter(i => (i.receivedQuantity || 0) > 0).length,
+            items: order.items.map(i => ({
+                name:             i.name,
+                ordered:          i.quantity,
+                issued:           i.issuedQuantity  || 0,
+                received:         i.receivedQuantity || 0,
+                rejected:         i.rejectedQuantity || 0,
+            })),
+        };
+        return res.status(200).json({ success: true, progress });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// POST: Dispatch a supplier order (mark as dispatched with dispatch details)
+export const dispatchSupplierOrder = async (req, res) => {
+    try {
+        const supplierEmail = req.user.email;
+        const { vehicleNumber, driverName, deliveryNotes } = req.body;
+
+        const order = await Order.findOne({ _id: req.params.id, supplierEmail, orderType: "purchase" });
+        if (!order) return res.status(404).json({ message: "Order not found" });
+
+        order.status = "dispatched";
+        order.dispatchDetails = {
+            vehicleNumber: vehicleNumber || "",
+            driverName:    driverName    || "",
+            dispatchDate:  new Date(),
+            deliveryNotes: deliveryNotes || "",
+        };
+
+        await order.save();
+        return res.status(200).json({ success: true, message: "Order dispatched", order });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// GET: All purchase orders for Admin
+export const getAllPurchaseOrders = async (req, res) => {
+    try {
+        const orders = await Order.find({ orderType: "purchase" }).sort({ date: -1 });
+        const mapped = orders.map(o => ({
+            id: o._id,
+            po_id: o.orderID || "PO-NEW",
+            supplier: o.supplierEmail || "Unknown Supplier",
+            orderDate: o.date,
+            expectedDelivery: o.dispatchDetails?.dispatchDate || "Pending",
+            totalItems: o.items?.length || 0,
+            totalAmount: o.total || 0,
+            status: o.status.toLowerCase(),
+            items: o.items
+        }));
+        return res.status(200).json({ success: true, orders: mapped });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// PUT: Update PO status by Admin
+export const updatePurchaseOrderStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const order = await Order.findByIdAndUpdate(
+            req.params.id,
+            { status },
+            { new: true }
+        );
+        if (!order) return res.status(404).json({ message: "Purchase Order not found" });
+        return res.status(200).json({ success: true, order });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

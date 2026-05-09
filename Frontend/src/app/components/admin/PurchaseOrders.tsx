@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { AdminLayout } from './AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Checkbox } from '../ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { toast } from 'sonner';
 import {
   FileText,
   Search,
@@ -24,185 +26,133 @@ import {
   Calendar,
   Package,
   Send,
-  Upload,
-  MapPin,
+  Download,
   Clock,
   AlertCircle,
-  ArrowRight,
   ShoppingCart,
   CheckCircle2,
   XCircle,
-  Filter,
-  Download,
-  Edit,
-  Sparkles
+  Loader2,
+  RefreshCw,
+  ArrowRight
 } from 'lucide-react';
 
 interface PurchaseOrder {
   id: string;
+  po_id: string;
   supplier: string;
   orderDate: string;
   expectedDelivery: string;
   totalItems: number;
   totalAmount: number;
-  status: 'pending' | 'dispatched' | 'in-transit' | 'partially-received' | 'completed';
+  status: string;
+  items: any[];
 }
-
-interface OrderItem {
-  id: number;
-  name: string;
-  orderedQty: number;
-  receivedQty: number;
-  damagedQty: number;
-  unitPrice: number;
-  warehouse: string;
-  confirmed: boolean;
-}
-
-interface TimelineStep {
-  name: string;
-  status: 'completed' | 'current' | 'pending';
-  date?: string;
-  notes?: string;
-}
-
-const purchaseOrders: PurchaseOrder[] = [
-  { id: 'PO-20240115', supplier: 'Tech Supplies Inc', orderDate: '2024-01-15', expectedDelivery: '2024-01-25', totalItems: 5, totalAmount: 45000, status: 'completed' },
-  { id: 'PO-20240112', supplier: 'Global Trade Partners', orderDate: '2024-01-12', expectedDelivery: '2024-01-22', totalItems: 3, totalAmount: 28000, status: 'in-transit' },
-  { id: 'PO-20240110', supplier: 'Premium Materials Co', orderDate: '2024-01-10', expectedDelivery: '2024-01-20', totalItems: 8, totalAmount: 62000, status: 'dispatched' },
-  { id: 'PO-20240108', supplier: 'Swift Logistics Ltd', orderDate: '2024-01-08', expectedDelivery: '2024-01-18', totalItems: 4, totalAmount: 35000, status: 'pending' },
-];
-
-const sampleItems: OrderItem[] = [
-  { id: 1, name: 'Product A - Electronics', orderedQty: 500, receivedQty: 0, damagedQty: 0, unitPrice: 250, warehouse: '', confirmed: false },
-  { id: 2, name: 'Product B - Furniture', orderedQty: 300, receivedQty: 0, damagedQty: 0, unitPrice: 180, warehouse: '', confirmed: false },
-  { id: 3, name: 'Product C - Textiles', orderedQty: 200, receivedQty: 0, damagedQty: 0, unitPrice: 45, warehouse: '', confirmed: false },
-];
 
 export function PurchaseOrders() {
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('list');
-  const [selectedPO, setSelectedPO] = useState<string | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>(sampleItems);
-  const [currentStatus, setCurrentStatus] = useState<string>('in-transit');
-  const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [trackingNumber, setTrackingNumber] = useState('TRK-2024-5678');
+  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  const timeline: TimelineStep[] = [
-    { name: 'Purchase Order Sent', status: 'completed', date: '2024-01-12 10:30 AM', notes: 'PO sent to supplier via email' },
-    { name: 'Supplier Confirmed', status: 'completed', date: '2024-01-12 02:15 PM', notes: 'Order confirmed by supplier' },
-    { name: 'Goods Dispatched', status: 'completed', date: '2024-01-14 09:00 AM', notes: 'Goods dispatched from warehouse' },
-    { name: 'In Transit', status: 'current', date: '2024-01-15 11:30 AM', notes: 'Package in transit - ETA 2 days' },
-    { name: 'Goods Received', status: 'pending', notes: 'Awaiting delivery' },
-    { name: 'Stock Updated', status: 'pending', notes: 'Pending goods receipt' },
-  ];
-
-  const updateItemField = (id: number, field: keyof OrderItem, value: any) => {
-    setOrderItems(orderItems.map(item =>
-      item.id === id ? { ...item, [field]: value } : item
-    ));
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const handleReceiveGoods = () => {
-    setShowReceiveModal(false);
-    setShowSuccessModal(true);
-    setCurrentStatus('completed');
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'in-transit':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'dispatched':
-        return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'partially-received':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'pending':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true);
+      const res = await axios.get('http://localhost:5900/api/orders/purchase-orders', {
+        headers: getAuthHeader()
+      });
+      setPurchaseOrders(res.data.orders || []);
+    } catch (err: any) {
+      toast.error('Failed to load purchase orders');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-3 h-3 mr-1" />;
-      case 'in-transit':
-        return <Truck className="w-3 h-3 mr-1" />;
-      case 'dispatched':
-        return <Send className="w-3 h-3 mr-1" />;
-      case 'pending':
-        return <Clock className="w-3 h-3 mr-1" />;
-      default:
-        return null;
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    try {
+      setIsUpdatingStatus(true);
+      await axios.put(`http://localhost:5900/api/orders/purchase-orders/${id}/status`, 
+        { status: newStatus }, 
+        { headers: getAuthHeader() }
+      );
+      toast.success(`Order updated to ${newStatus}`);
+      fetchOrders();
+      if (selectedPO?.id === id) {
+        setSelectedPO({ ...selectedPO, status: newStatus });
+      }
+    } catch (err: any) {
+      toast.error('Failed to update order status');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'bg-green-100 text-green-700 border-green-200';
+      case 'dispatched': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'in-transit': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'confirmed': return 'bg-teal-100 text-teal-700 border-teal-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   const filteredOrders = purchaseOrders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = order.po_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           order.supplier.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || order.status.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
-
-  const canSendPO = currentStatus === 'pending';
-  const canMarkDispatched = currentStatus === 'pending' || currentStatus === 'dispatched';
-  const canReceiveGoods = currentStatus === 'in-transit' || currentStatus === 'dispatched';
-  const canCompleteOrder = currentStatus === 'partially-received';
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Breadcrumb and Header */}
-        <div>
-          <div className="flex items-center gap-2 text-sm text-slate-600 mb-3">
-            <span>Admin</span>
-            <span>/</span>
-            <span>Supplier Management</span>
-            <span>/</span>
-            <span className="text-blue-600">Purchase Orders</span>
-          </div>
-          
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 p-8 text-white shadow-modern-lg">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <ShoppingCart className="w-5 h-5" />
-                <span className="text-blue-100">Supplier Management</span>
-              </div>
-              <h1 className="text-3xl mb-2">Purchase Orders & Delivery Tracking</h1>
-              <p className="text-blue-100">Manage purchase orders, track deliveries, and update stock automatically</p>
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-8 text-white shadow-modern-lg">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="text-blue-100 uppercase tracking-widest text-xs font-bold">Procurement</span>
             </div>
+            <h1 className="text-3xl mb-2 font-black">Purchase Orders</h1>
+            <p className="text-blue-100 opacity-90">Track inventory restocking, supplier fulfillments, and delivery progress</p>
           </div>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-slate-100">
-            <TabsTrigger value="list" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <FileText className="w-4 h-4 mr-2" />
-              Purchase Orders
+          <TabsList className="bg-slate-100 p-1 rounded-xl">
+            <TabsTrigger value="list" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-blue-600 font-bold">
+              Active Orders
             </TabsTrigger>
-            <TabsTrigger value="view" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Eye className="w-4 h-4 mr-2" />
-              View Order
+            <TabsTrigger value="view" disabled={!selectedPO} className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-blue-600 font-bold">
+              Order Details
             </TabsTrigger>
           </TabsList>
 
-          {/* Section 1: Purchase Orders List */}
           <TabsContent value="list" className="mt-6">
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+              <CardHeader className="bg-slate-50/80 border-b border-slate-100">
                 <div className="flex items-center justify-between flex-wrap gap-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="w-5 h-5 text-blue-600" />
-                    Purchase Orders List
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    Purchase Ledger
                   </CardTitle>
                   <div className="flex items-center gap-3">
                     <div className="relative">
@@ -211,81 +161,78 @@ export function PurchaseOrders() {
                         placeholder="Search PO or supplier..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 w-64 border-slate-200"
+                        className="pl-9 w-64 border-slate-200 rounded-xl"
                       />
                     </div>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-48 border-slate-200">
-                        <SelectValue placeholder="Filter by status" />
+                      <SelectTrigger className="w-48 border-slate-200 rounded-xl">
+                        <SelectValue placeholder="Status Filter" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
                         <SelectItem value="dispatched">Dispatched</SelectItem>
-                        <SelectItem value="in-transit">In Transit</SelectItem>
-                        <SelectItem value="partially-received">Partially Received</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Button variant="outline" size="sm" onClick={fetchOrders} className="h-10 w-10 p-0 rounded-xl">
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-6">
-                <div className="overflow-hidden rounded-xl border border-slate-200">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead>PO Number</TableHead>
-                        <TableHead>Supplier Name</TableHead>
-                        <TableHead>Order Date</TableHead>
-                        <TableHead>Expected Delivery</TableHead>
-                        <TableHead>Total Items</TableHead>
-                        <TableHead>Total Amount</TableHead>
-                        <TableHead>Delivery Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                      <TableRow className="bg-slate-50/30 hover:bg-slate-50/30 border-0">
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 pl-6">PO Ref</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Supplier</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Date</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Total Value</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-center">Status</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-right pr-6">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="text-slate-900">{order.id}</TableCell>
-                          <TableCell className="text-slate-900">{order.supplier}</TableCell>
-                          <TableCell className="text-slate-600">{order.orderDate}</TableCell>
-                          <TableCell className="text-slate-600">{order.expectedDelivery}</TableCell>
-                          <TableCell className="text-slate-900">{order.totalItems} items</TableCell>
-                          <TableCell className="text-slate-900">${order.totalAmount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(order.status)}>
-                              {getStatusIcon(order.status)}
-                              {order.status.replace('-', ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
+                      {isLoading ? (
+                        <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" /></TableCell></TableRow>
+                      ) : filteredOrders.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} className="text-center py-20 text-slate-400 italic">No purchase orders found.</TableCell></TableRow>
+                      ) : (
+                        filteredOrders.map((order) => (
+                          <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0 group">
+                            <TableCell className="pl-6 py-4 font-mono font-bold text-blue-600">{order.po_id}</TableCell>
+                            <TableCell className="py-4">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-slate-900">{order.supplier}</span>
+                                <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Verified Partner</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4 text-slate-500 text-sm">{new Date(order.orderDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="py-4 font-black text-slate-900">${order.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell className="py-4 text-center">
+                              <Badge className={`${getStatusColor(order.status)} border capitalize px-3 h-6 text-[10px] font-bold`}>
+                                {order.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-4 text-right pr-6">
                               <Button 
                                 variant="outline" 
                                 size="sm" 
-                                className="hover:bg-blue-50 hover:text-blue-600"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-200 hover:bg-blue-50 hover:text-blue-600"
                                 onClick={() => {
-                                  setSelectedPO(order.id);
+                                  setSelectedPO(order);
                                   setActiveTab('view');
                                 }}
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-purple-50 hover:text-purple-600">
-                                <Truck className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="hover:bg-green-50 hover:text-green-600">
-                                <Package className="w-4 h-4" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -293,486 +240,133 @@ export function PurchaseOrders() {
             </Card>
           </TabsContent>
 
-          {/* View/Create Purchase Order Tab */}
           <TabsContent value="view" className="mt-6 space-y-6">
-            {/* Section 2: Supplier Information */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                  Supplier Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
-                    <h3 className="text-blue-900 mb-4">Global Trade Partners</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-slate-700">
-                        <Phone className="w-4 h-4 text-blue-600" />
-                        +1 234 567 8901
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-700">
-                        <Mail className="w-4 h-4 text-blue-600" />
-                        info@globaltrade.com
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-700">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        Quotation Ref: <span className="text-slate-900">QT-20240110</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl border-2 border-purple-200">
-                    <h3 className="text-purple-900 mb-4">Payment Terms</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Payment Method:</span>
-                        <span className="text-slate-900">Bank Transfer</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Payment Terms:</span>
-                        <span className="text-slate-900">Net 30 Days</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Currency:</span>
-                        <span className="text-slate-900">USD</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {selectedPO && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Order Items */}
+                  <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                    <CardHeader className="bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between">
+                      <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-blue-600" />
+                        Line Items
+                      </CardTitle>
+                      <Badge className="bg-blue-600 text-white border-0">{selectedPO.items?.length} Items</Badge>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50/30 hover:bg-slate-50/30 border-0">
+                            <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 pl-6">Product</TableHead>
+                            <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-center">Quantity</TableHead>
+                            <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-right">Unit Price</TableHead>
+                            <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 text-right pr-6">Subtotal</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedPO.items?.map((item: any, idx: number) => (
+                            <TableRow key={idx} className="border-b last:border-0">
+                              <TableCell className="pl-6 py-4 font-bold text-slate-700">{item.name}</TableCell>
+                              <TableCell className="py-4 text-center font-black text-slate-400">{item.quantity} {item.unit}</TableCell>
+                              <TableCell className="py-4 text-right text-slate-600 font-mono text-xs">${item.price?.toLocaleString()}</TableCell>
+                              <TableCell className="py-4 text-right pr-6 font-black text-slate-900">${(item.quantity * item.price).toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
 
-            {/* Section 3: Purchase Order Items */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-blue-600" />
-                  Order Items
-                </CardTitle>
-                <p className="text-sm text-slate-600 mt-1">Items from approved quotation</p>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>Ordered Qty</TableHead>
-                        <TableHead>Unit Price</TableHead>
-                        <TableHead>Total Price</TableHead>
-                        <TableHead>Expected Delivery</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orderItems.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell className="text-slate-900">{item.name}</TableCell>
-                          <TableCell className="text-slate-900">{item.orderedQty} units</TableCell>
-                          <TableCell className="text-slate-900">${item.unitPrice}</TableCell>
-                          <TableCell className="text-slate-900">${(item.orderedQty * item.unitPrice).toLocaleString()}</TableCell>
-                          <TableCell className="text-slate-600">2024-01-22</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <div className="bg-blue-50 rounded-xl p-4 min-w-[300px]">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Subtotal:</span>
-                        <span className="text-slate-900">$134,000</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Tax (10%):</span>
-                        <span className="text-slate-900">$13,400</span>
-                      </div>
-                      <div className="border-t-2 border-blue-200 pt-2 flex justify-between">
-                        <span className="text-blue-900">Total Amount:</span>
-                        <span className="text-blue-900">$147,400</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section 4: Delivery Tracking Timeline */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-blue-600" />
-                  Delivery Tracking Timeline
-                </CardTitle>
-                <p className="text-sm text-slate-600 mt-1">Track order progress from purchase to stock update</p>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="relative">
-                  {timeline.map((step, index) => (
-                    <div key={index} className="flex gap-4 pb-8 last:pb-0">
-                      {/* Timeline line */}
-                      {index !== timeline.length - 1 && (
-                        <div className="absolute left-6 top-12 bottom-0 w-0.5 bg-slate-200"></div>
-                      )}
-                      
-                      {/* Status icon */}
-                      <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${
-                        step.status === 'completed' 
-                          ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-                          : step.status === 'current'
-                          ? 'bg-gradient-to-br from-blue-500 to-cyan-600 animate-pulse'
-                          : 'bg-slate-200'
-                      }`}>
-                        {step.status === 'completed' ? (
-                          <CheckCircle2 className="w-6 h-6 text-white" />
-                        ) : step.status === 'current' ? (
-                          <Clock className="w-6 h-6 text-white" />
-                        ) : (
-                          <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 pt-1">
-                        <div className={`p-4 rounded-xl border-2 ${
-                          step.status === 'completed'
-                            ? 'bg-green-50 border-green-200'
-                            : step.status === 'current'
-                            ? 'bg-blue-50 border-blue-300 shadow-md'
-                            : 'bg-slate-50 border-slate-200'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className={
-                              step.status === 'completed'
-                                ? 'text-green-900'
-                                : step.status === 'current'
-                                ? 'text-blue-900'
-                                : 'text-slate-600'
-                            }>
-                              {step.name}
-                            </h4>
-                            {step.date && (
-                              <Badge variant="outline" className="text-xs">
-                                {step.date}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600">{step.notes}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section 5: Supplier Delivery Updates */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  Delivery Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <Label>Tracking Number</Label>
-                    <Input
-                      value={trackingNumber}
-                      onChange={(e) => setTrackingNumber(e.target.value)}
-                      className="mt-1 border-slate-200"
-                      readOnly
-                    />
-                  </div>
-                  <div>
-                    <Label>Vehicle Reference</Label>
-                    <Input
-                      value="VEH-TRK-456"
-                      className="mt-1 border-slate-200"
-                      readOnly
-                    />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>Supplier Notes</Label>
-                    <Textarea
-                      value="Package dispatched from our main warehouse. Expected delivery within 2 business days. Please ensure receiving staff are available during business hours."
-                      className="mt-1 border-slate-200 bg-slate-50"
-                      readOnly
-                      rows={3}
-                    />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>Delivery Documents</Label>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-900">Invoice_PO-20240112.pdf</p>
-                            <p className="text-xs text-slate-500">245 KB</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <Download className="w-4 h-4" />
+                  {/* Actions & Status Control */}
+                  <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                    <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                      <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Administrative Controls</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="flex flex-wrap gap-4">
+                        <Button 
+                          onClick={() => handleUpdateStatus(selectedPO.id, 'confirmed')}
+                          disabled={isUpdatingStatus || selectedPO.status === 'confirmed'}
+                          className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl h-11 px-6 shadow-lg shadow-teal-100"
+                        >
+                          Confirm Order
+                        </Button>
+                        <Button 
+                          onClick={() => handleUpdateStatus(selectedPO.id, 'cancelled')}
+                          disabled={isUpdatingStatus || selectedPO.status === 'cancelled'}
+                          variant="outline"
+                          className="border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-xl h-11 px-6"
+                        >
+                          Cancel Order
+                        </Button>
+                        <div className="flex-1" />
+                        <Button
+                          onClick={() => handleUpdateStatus(selectedPO.id, 'completed')}
+                          disabled={isUpdatingStatus || selectedPO.status === 'completed'}
+                          className="bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl h-11 px-8 shadow-xl shadow-green-100"
+                        >
+                          Mark as Received
                         </Button>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-900">Delivery_Note_20240112.pdf</p>
-                            <p className="text-xs text-slate-500">128 KB</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <Download className="w-4 h-4" />
-                        </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Summary Card */}
+                  <Card className="modern-card border-0 shadow-modern-lg overflow-hidden bg-slate-900 text-white">
+                    <CardHeader className="border-b border-white/10">
+                      <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Order Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-400">Status</span>
+                        <Badge className={`${getStatusColor(selectedPO.status)} border-0 font-bold`}>{selectedPO.status}</Badge>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-400">Items Count</span>
+                        <span className="font-bold">{selectedPO.totalItems}</span>
+                      </div>
+                      <div className="pt-4 border-t border-white/10">
+                        <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Grand Total</p>
+                        <p className="text-4xl font-black text-white">${selectedPO.totalAmount.toLocaleString()}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-            {/* Section 6: Receive Goods */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-blue-600" />
-                  Receive Goods & Stock Update
-                </CardTitle>
-                <p className="text-sm text-slate-600 mt-1">Record received quantities and update stock</p>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead>Confirm</TableHead>
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>Ordered Qty</TableHead>
-                        <TableHead>Received Qty</TableHead>
-                        <TableHead>Damaged/Missing</TableHead>
-                        <TableHead>Warehouse Location</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orderItems.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell>
-                            <Checkbox
-                              checked={item.confirmed}
-                              onCheckedChange={(checked) => 
-                                updateItemField(item.id, 'confirmed', checked)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-slate-900">{item.name}</TableCell>
-                          <TableCell className="text-slate-900">{item.orderedQty}</TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={item.receivedQty}
-                              onChange={(e) => updateItemField(item.id, 'receivedQty', parseInt(e.target.value) || 0)}
-                              className="w-24 border-slate-200"
-                              placeholder="0"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={item.damagedQty}
-                              onChange={(e) => updateItemField(item.id, 'damagedQty', parseInt(e.target.value) || 0)}
-                              className="w-24 border-slate-200"
-                              placeholder="0"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={item.warehouse}
-                              onValueChange={(value) => updateItemField(item.id, 'warehouse', value)}
-                            >
-                              <SelectTrigger className="w-40 border-slate-200">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="warehouse-a">Warehouse A</SelectItem>
-                                <SelectItem value="warehouse-b">Warehouse B</SelectItem>
-                                <SelectItem value="warehouse-c">Warehouse C</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  {/* Supplier Details */}
+                  <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+                    <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                      <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Supplier Profile</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shrink-0">
+                          <Building2 className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-900">{selectedPO.supplier}</p>
+                          <p className="text-xs text-slate-500">Verified System Supplier</p>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Mail className="w-4 h-4 text-blue-500" />
+                          <span>{selectedPO.supplier}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Phone className="w-4 h-4 text-blue-500" />
+                          <span>+94 77 123 4567</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-                <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-yellow-900 mb-1">Important Notice</p>
-                      <p className="text-sm text-yellow-700">
-                        Confirming goods receipt will automatically add received items to stock. 
-                        Please verify all quantities and warehouse locations before proceeding.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section 8: Actions */}
-            <Card className="modern-card border-0 shadow-modern-lg">
-              <CardContent className="pt-6">
-                <div className="flex flex-wrap gap-4 justify-end">
-                  <Button
-                    variant="outline"
-                    disabled={!canSendPO}
-                    className="border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Purchase Order
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!canMarkDispatched}
-                    className="border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-                  >
-                    <Truck className="w-4 h-4 mr-2" />
-                    Mark as Dispatched
-                  </Button>
-                  <Button
-                    disabled={!canReceiveGoods}
-                    onClick={() => setShowReceiveModal(true)}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg disabled:opacity-50"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Confirm Goods Received
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!canCompleteOrder}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Complete Order
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Receive Goods Confirmation Modal */}
-      <Dialog open={showReceiveModal} onOpenChange={setShowReceiveModal}>
-        <DialogContent className="border-0 shadow-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600" />
-              Confirm Goods Receipt
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-slate-600 mb-4">
-              You are about to confirm receipt of goods for Purchase Order <span className="text-blue-600 font-medium">PO-20240112</span>.
-            </p>
-            <div className="bg-blue-50 rounded-xl p-4 mb-4">
-              <h4 className="text-blue-900 mb-2">What will happen:</h4>
-              <ul className="space-y-1 text-sm text-blue-700">
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>Received items will be added to stock automatically</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>Stock activity log will be created</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>PO reference will be linked to stock records</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>Order status will be updated to "Completed"</span>
-                </li>
-              </ul>
-            </div>
-            <p className="text-sm text-slate-600">
-              Are you sure you want to proceed?
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowReceiveModal(false)}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleReceiveGoods}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-            >
-              Confirm & Update Stock
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="border-0 shadow-2xl max-w-md">
-          <div className="text-center py-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-10 h-10 text-green-600" />
-            </div>
-            <DialogTitle className="text-2xl mb-2">Stock Updated Successfully!</DialogTitle>
-            <p className="text-slate-600 mb-6">
-              Received items have been added to stock automatically.
-            </p>
-            <div className="bg-green-50 rounded-xl p-4 mb-6 text-left">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Purchase Order:</span>
-                  <span className="text-slate-900">PO-20240112</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Items Added:</span>
-                  <span className="text-slate-900">3 items</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Total Quantity:</span>
-                  <span className="text-slate-900">1,000 units</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Status:</span>
-                  <Badge className="bg-green-100 text-green-700 border-green-200">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Completed
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <Button
-              onClick={() => {
-                setShowSuccessModal(false);
-                setActiveTab('list');
-              }}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-            >
-              View Purchase Orders
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </AdminLayout>
   );
 }

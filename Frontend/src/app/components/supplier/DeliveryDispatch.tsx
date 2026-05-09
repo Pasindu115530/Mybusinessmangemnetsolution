@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { SupplierLayout } from './SupplierLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,6 +10,8 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { toast } from 'sonner';
 import {
   Truck,
   CheckCircle2,
@@ -16,46 +20,123 @@ import {
   Send,
   Upload,
   FileText,
-  CheckCircle
+  CheckCircle,
+  Loader2,
+  Search,
+  MapPin,
+  ShieldCheck,
+  AlertCircle,
+  Receipt
 } from 'lucide-react';
 
-interface TimelineStep {
-  name: string;
-  status: 'completed' | 'current' | 'pending';
-  date?: string;
-  notes?: string;
+interface Order {
+  _id: string;
+  po_id: string;
+  status: string;
+}
+
+interface DeliveryProgress {
+  totalItems: number;
+  dispatchedItems: number;
+  receivedItems: number;
+  items: Array<{
+    name: string;
+    ordered: number;
+    issued: number;
+    received: number;
+    rejected: number;
+  }>;
 }
 
 export function DeliveryDispatch() {
-  const [selectedOrder, setSelectedOrder] = useState('ORD-20240114');
-  const [trackingNumber, setTrackingNumber] = useState('');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const stateOrderId = (location.state as { orderId?: string })?.orderId;
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(stateOrderId || '');
+  const [progress, setProgress] = useState<DeliveryProgress | null>(null);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+  const [isDispatching, setIsDispatching] = useState(false);
+
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [driverName, setDriverName] = useState('');
-  const [notes, setNotes] = useState('');
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const [timeline, setTimeline] = useState<TimelineStep[]>([
-    { name: 'Order Received', status: 'completed', date: '2024-01-14 10:00 AM', notes: 'Order confirmed from customer' },
-    { name: 'Goods Prepared', status: 'completed', date: '2024-01-14 02:30 PM', notes: 'All items packed and ready' },
-    { name: 'Dispatched', status: 'current', notes: 'Enter dispatch details' },
-    { name: 'In Transit', status: 'pending', notes: 'Awaiting dispatch' },
-    { name: 'Delivered', status: 'pending', notes: 'Awaiting delivery confirmation' },
-  ]);
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('supplierToken') || localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadedFile(e.target.files[0]);
+  const fetchOrders = async () => {
+    try {
+      setIsLoadingOrders(true);
+      const headers = getAuthHeader();
+      const res = await axios.get('http://localhost:5900/api/suppliers/orders/dispatch-list', { headers });
+      setOrders(res.data.orders || []);
+      if (!selectedOrderId && res.data.orders?.length > 0) {
+        setSelectedOrderId(res.data.orders[0]._id);
+      }
+    } catch (err: any) {
+      toast.error('Failed to load dispatchable orders');
+    } finally {
+      setIsLoadingOrders(false);
     }
   };
 
-  const handleSubmit = () => {
-    setShowSuccessModal(true);
+  const fetchProgress = async (id: string) => {
+    if (!id) return;
+    try {
+      setIsLoadingProgress(true);
+      const headers = getAuthHeader();
+      const res = await axios.get(`http://localhost:5900/api/suppliers/orders/${id}/delivery-progress`, { headers });
+      setProgress(res.data.progress);
+    } catch (err: any) {
+      console.error('Progress fetch error:', err);
+    } finally {
+      setIsLoadingProgress(false);
+    }
   };
+
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (selectedOrderId) {
+      fetchProgress(selectedOrderId);
+    }
+  }, [selectedOrderId]);
+
+  const handleDispatch = async () => {
+    if (!selectedOrderId) return;
+    try {
+      setIsDispatching(true);
+      const headers = getAuthHeader();
+      await axios.post(`http://localhost:5900/api/suppliers/orders/${selectedOrderId}/dispatch`, {
+        vehicleNumber,
+        driverName,
+        deliveryNotes
+      }, { headers });
+      
+      setShowSuccessModal(true);
+      fetchOrders();
+      fetchProgress(selectedOrderId);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to dispatch order');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
+
+  const selectedOrderObj = orders.find(o => o._id === selectedOrderId);
 
   return (
     <SupplierLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-6xl mx-auto pb-12">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-8 text-white shadow-modern-lg">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
@@ -63,234 +144,229 @@ export function DeliveryDispatch() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
               <Truck className="w-5 h-5" />
-              <span className="text-green-100">Delivery Management</span>
+              <span className="text-green-100 uppercase tracking-wider text-xs font-bold font-mono">Logistics Management</span>
             </div>
-            <h1 className="text-3xl mb-2">Delivery & Dispatch</h1>
-            <p className="text-green-100">Manage order dispatch and track delivery progress</p>
+            <h1 className="text-3xl mb-2 font-black">Delivery & Dispatch</h1>
+            <p className="text-green-100 opacity-90">Manage order fulfillment, logistics details, and transit progress</p>
           </div>
         </div>
 
-        {/* Order Selection */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-green-600" />
-              Select Order
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Select value={selectedOrder} onValueChange={setSelectedOrder}>
-              <SelectTrigger className="border-slate-200">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ORD-20240114">ORD-20240114 - XYZ Industries</SelectItem>
-                <SelectItem value="ORD-20240113">ORD-20240113 - Tech Solutions</SelectItem>
-                <SelectItem value="ORD-20240112">ORD-20240112 - Global Enterprises</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {/* Delivery Timeline */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="w-5 h-5 text-green-600" />
-              Delivery Progress
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="relative">
-              {timeline.map((step, index) => (
-                <div key={index} className="flex gap-4 pb-8 last:pb-0">
-                  {index !== timeline.length - 1 && (
-                    <div className="absolute left-6 top-12 bottom-0 w-0.5 bg-slate-200"></div>
-                  )}
-                  
-                  <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${
-                    step.status === 'completed' 
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-                      : step.status === 'current'
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 animate-pulse'
-                      : 'bg-slate-200'
-                  }`}>
-                    {step.status === 'completed' ? (
-                      <CheckCircle2 className="w-6 h-6 text-white" />
-                    ) : step.status === 'current' ? (
-                      <Clock className="w-6 h-6 text-white" />
-                    ) : (
-                      <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 pt-1">
-                    <div className={`p-4 rounded-xl border-2 ${
-                      step.status === 'completed'
-                        ? 'bg-green-50 border-green-200'
-                        : step.status === 'current'
-                        ? 'bg-green-50 border-green-300 shadow-md'
-                        : 'bg-slate-50 border-slate-200'
-                    }`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className={
-                          step.status === 'completed'
-                            ? 'text-green-900'
-                            : step.status === 'current'
-                            ? 'text-green-900'
-                            : 'text-slate-600'
-                        }>
-                          {step.name}
-                        </h4>
-                        {step.date && (
-                          <Badge variant="outline" className="text-xs">
-                            {step.date}
-                          </Badge>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 space-y-6">
+            {/* Order Selection */}
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+              <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-green-600" />
+                  Select Order
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {isLoadingOrders ? (
+                  <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-green-600" /></div>
+                ) : (
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Order Reference</Label>
+                    <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                      <SelectTrigger className="border-slate-200 h-12 rounded-xl">
+                        <SelectValue placeholder="Select an order" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orders.length === 0 ? (
+                          <SelectItem value="none" disabled>No orders ready to dispatch</SelectItem>
+                        ) : (
+                          orders.map(o => (
+                            <SelectItem key={o._id} value={o._id}>{o.po_id || 'PO-NEW'}</SelectItem>
+                          ))
                         )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Delivery Progress Stats */}
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden bg-slate-900 text-white">
+              <CardHeader className="border-b border-white/10">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Item Fulfillment</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {isLoadingProgress ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-green-400" /></div>
+                ) : progress ? (
+                  <>
+                    <div className="space-y-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Total Line Items</span>
+                        <span className="font-bold">{progress.totalItems}</span>
                       </div>
-                      <p className="text-sm text-slate-600">{step.notes}</p>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Successfully Received</span>
+                        <span className="font-bold text-green-400">{progress.receivedItems}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-4 border-t border-white/10">
+                      <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Progress Visualization</p>
+                      <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-green-500 h-full transition-all duration-1000" 
+                          style={{ width: `${(progress.receivedItems / progress.totalItems) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4 text-slate-500 italic text-sm">Select an order to see progress</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-2 space-y-6">
+            {/* Dispatch Form */}
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+              <CardHeader className="bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                  <Send className="w-4 h-4 text-green-600" />
+                  Dispatch Information
+                </CardTitle>
+                {selectedOrderObj && (
+                  <Badge className="bg-green-100 text-green-700 border-green-200 capitalize">
+                    {selectedOrderObj.status}
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Vehicle Number *</Label>
+                    <div className="relative">
+                      <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input 
+                        value={vehicleNumber}
+                        onChange={(e) => setVehicleNumber(e.target.value)}
+                        placeholder="e.g. WP-ABC-1234"
+                        className="pl-10 border-slate-200 h-12 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Driver Name *</Label>
+                    <div className="relative">
+                      <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input 
+                        value={driverName}
+                        onChange={(e) => setDriverName(e.target.value)}
+                        placeholder="Enter driver name"
+                        className="pl-10 border-slate-200 h-12 rounded-xl"
+                      />
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Dispatch Details */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-xl">
-            <CardTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-green-600" />
-              Dispatch Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label>Tracking Number *</Label>
-                <Input
-                  placeholder="Enter tracking number"
-                  value={trackingNumber}
-                  onChange={(e) => setTrackingNumber(e.target.value)}
-                  className="mt-2 border-slate-200"
-                />
-              </div>
-              <div>
-                <Label>Vehicle Number *</Label>
-                <Input
-                  placeholder="Enter vehicle number"
-                  value={vehicleNumber}
-                  onChange={(e) => setVehicleNumber(e.target.value)}
-                  className="mt-2 border-slate-200"
-                />
-              </div>
-              <div>
-                <Label>Driver Name *</Label>
-                <Input
-                  placeholder="Enter driver name"
-                  value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                  className="mt-2 border-slate-200"
-                />
-              </div>
-              <div>
-                <Label>Dispatch Date *</Label>
-                <Input
-                  type="datetime-local"
-                  className="mt-2 border-slate-200"
-                />
-              </div>
-            </div>
+                <div className="space-y-2 mb-6">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Delivery Notes</Label>
+                  <Textarea 
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    placeholder="Add special instructions for delivery..."
+                    className="min-h-[100px] border-slate-200 rounded-xl focus:border-green-400 transition-colors"
+                  />
+                </div>
 
-            <div>
-              <Label>Delivery Notes</Label>
-              <Textarea
-                placeholder="Add delivery instructions or special notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="mt-2 border-slate-200"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label>Upload Delivery Note / Invoice</Label>
-              <div className="mt-2 border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-green-400 hover:bg-green-50/50 transition-all">
-                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-600 mb-2">Click to upload delivery documents</p>
-                <input
-                  type="file"
-                  id="delivery-doc"
-                  className="hidden"
-                  accept=".pdf,.png,.jpg"
-                  onChange={handleFileUpload}
-                />
-                <label htmlFor="delivery-doc">
-                  <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={() => document.getElementById('delivery-doc')?.click()}>
-                    Choose File
+                <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <Button
+                    onClick={handleDispatch}
+                    disabled={isDispatching || !selectedOrderId || !vehicleNumber || !driverName}
+                    className="h-14 px-10 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-green-100 disabled:opacity-50"
+                  >
+                    {isDispatching ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Finalize Dispatch <Send className="w-4 h-4 ml-2" /></>}
                   </Button>
-                </label>
-                {uploadedFile && (
-                  <div className="mt-3 flex items-center justify-center gap-2 text-sm text-green-700">
-                    <FileText className="w-4 h-4" />
-                    {uploadedFile.name}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Actions */}
-        <Card className="modern-card border-0 shadow-modern-lg">
-          <CardContent className="pt-6">
-            <div className="flex justify-end">
-              <Button
-                onClick={handleSubmit}
-                disabled={!trackingNumber || !vehicleNumber || !driverName}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg disabled:opacity-50"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Mark as Dispatched
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            {/* Item Breakdown */}
+            <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+              <CardHeader className="bg-slate-50/80 border-b border-slate-100">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-green-600" />
+                  Itemized Transit Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/30 hover:bg-slate-50/30 border-0">
+                        <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 pl-6">Product</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 text-center">Ordered</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 text-center">In Transit</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 text-center">Received</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoadingProgress ? (
+                        <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-green-600" /></TableCell></TableRow>
+                      ) : progress?.items.map((item, idx) => (
+                        <TableRow key={idx} className="border-slate-100">
+                          <TableCell className="pl-6 py-4 font-bold text-slate-700">{item.name}</TableCell>
+                          <TableCell className="text-center font-black text-slate-400">{item.ordered}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-blue-50 text-blue-600 border-blue-100">{item.issued}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-green-50 text-green-600 border-green-100">{item.received}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      )) || (
+                        <TableRow><TableCell colSpan={4} className="text-center py-10 text-slate-400 italic">No progress data available</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="border-0 shadow-2xl max-w-md">
-          <div className="text-center py-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <DialogContent className="border-0 shadow-2xl max-w-md p-0 overflow-hidden">
+          <div className="text-center p-8 bg-green-50">
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-green-200/50">
               <CheckCircle className="w-10 h-10 text-green-600" />
             </div>
-            <DialogTitle className="text-2xl mb-2">Order Dispatched!</DialogTitle>
-            <p className="text-slate-600 mb-6">
-              Order has been marked as dispatched. Customer and admin have been notified.
+            <DialogTitle className="text-2xl font-black text-slate-900">Dispatch Successful!</DialogTitle>
+            <p className="text-slate-500 mt-2">
+              The order has been marked as dispatched. Real-time tracking is now available for the customer and administration.
             </p>
-            <div className="bg-green-50 rounded-xl p-4 mb-6 text-left">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Order ID:</span>
-                  <span className="text-slate-900">{selectedOrder}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Tracking Number:</span>
-                  <span className="text-slate-900">{trackingNumber}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Vehicle:</span>
-                  <span className="text-slate-900">{vehicleNumber}</span>
-                </div>
+          </div>
+          
+          <div className="p-8 space-y-4">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase">Vehicle Number</span>
+                <span className="text-slate-900 font-black">{vehicleNumber}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase">Driver</span>
+                <span className="text-slate-900 font-black">{driverName}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400 font-bold uppercase">Time</span>
+                <span className="text-slate-900 font-black">{new Date().toLocaleTimeString()}</span>
               </div>
             </div>
+
             <Button
-              onClick={() => setShowSuccessModal(false)}
-              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+              onClick={() => navigate('/supplier/quotations')}
+              className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl"
             >
-              Done
+              Go to Quotations
             </Button>
           </div>
         </DialogContent>

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { SupplierLayout } from './SupplierLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,6 +9,7 @@ import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { toast } from 'sonner';
 import {
   FileText,
   Search,
@@ -19,84 +21,151 @@ import {
   Package,
   Calendar,
   User,
-  XCircle
+  XCircle,
+  Loader2,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
+
+interface RequirementItem {
+  itemName: string;
+  quantity: number;
+  unit: string;
+  expectedDeliveryDate?: string;
+  notes?: string;
+}
 
 interface Requirement {
   id: string;
-  customer: string;
-  items: number;
-  totalQuantity: number;
-  expectedDelivery: string;
-  uploadedDocs: number;
-  status: 'new' | 'quoted' | 'in-progress' | 'completed';
-  date: string;
+  requirementId: string;
+  customerName: string;
+  companyName: string;
+  items: RequirementItem[];
+  itemSummary: string;
+  createdAt: string;
+  status: string;
+  rejectReason: string | null;
+  attachedDocument: string | null;
 }
 
-const requirements: Requirement[] = [
-  { id: 'REQ-20240115', customer: 'Acme Corp', items: 3, totalQuantity: 1000, expectedDelivery: '2024-02-15', uploadedDocs: 2, status: 'new', date: '2024-01-15' },
-  { id: 'REQ-20240114', customer: 'XYZ Industries', items: 5, totalQuantity: 1500, expectedDelivery: '2024-02-10', uploadedDocs: 1, status: 'quoted', date: '2024-01-14' },
-  { id: 'REQ-20240113', customer: 'Tech Solutions', items: 2, totalQuantity: 500, expectedDelivery: '2024-02-20', uploadedDocs: 3, status: 'in-progress', date: '2024-01-13' },
-  { id: 'REQ-20240112', customer: 'Global Enterprises', items: 4, totalQuantity: 2000, expectedDelivery: '2024-02-25', uploadedDocs: 2, status: 'completed', date: '2024-01-12' },
-];
-
-const requirementItems = [
-  { id: 1, name: 'Product A - Electronics', quantity: 500, unit: 'units', notes: 'High quality required' },
-  { id: 2, name: 'Product B - Furniture', quantity: 300, unit: 'units', notes: 'Include assembly instructions' },
-  { id: 3, name: 'Product C - Textiles', quantity: 200, unit: 'units', notes: 'Fire-resistant material preferred' },
-];
+interface Stats {
+  total: number;
+  new: number;
+  in_progress: number;
+  completed: number;
+  rejected: number;
+}
 
 export function CustomerRequirements() {
   const navigate = useNavigate();
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
+  const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('supplierToken') || localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const headers = getAuthHeader();
+      
+      const params: Record<string, string> = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (searchQuery) params.search = searchQuery;
+
+      const [reqRes, statsRes] = await Promise.all([
+        axios.get('http://localhost:5900/api/suppliers/supplier-requirements/my', { headers, params }),
+        axios.get('http://localhost:5900/api/suppliers/requirements/stats', { headers })
+      ]);
+
+      setRequirements(reqRes.data.requirements || []);
+      setStats(statsRes.data.stats || null);
+    } catch (err: any) {
+      console.error('Failed to load requirements:', err);
+      toast.error(err.response?.data?.message || 'Failed to load customer requirements');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new':
+    switch (status?.toLowerCase()) {
+      case 'pending':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'quoted':
+      case 'accepted':
         return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'in-progress':
-        return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'completed':
+      case 'delivered':
         return 'bg-green-100 text-green-700 border-green-200';
+      case 'rejected':
+        return 'bg-red-100 text-red-700 border-red-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'new':
+    switch (status?.toLowerCase()) {
+      case 'pending':
         return <FileText className="w-3 h-3 mr-1" />;
       case 'quoted':
+      case 'accepted':
         return <Clock className="w-3 h-3 mr-1" />;
-      case 'in-progress':
-        return <Send className="w-3 h-3 mr-1" />;
-      case 'completed':
+      case 'delivered':
         return <CheckCircle className="w-3 h-3 mr-1" />;
+      case 'rejected':
+        return <XCircle className="w-3 h-3 mr-1" />;
       default:
         return null;
     }
   };
 
   const filteredRequirements = requirements.filter(req => {
-    const matchesSearch = req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          req.customer.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const q = searchQuery.toLowerCase();
+    return (
+      (req.requirementId || '').toLowerCase().includes(q) ||
+      (req.customerName || '').toLowerCase().includes(q) ||
+      (req.companyName || '').toLowerCase().includes(q) ||
+      (req.itemSummary || '').toLowerCase().includes(q)
+    );
   });
 
-  const handleViewDetails = (id: string) => {
-    setSelectedRequirement(id);
-    setShowDetailsModal(true);
+  const handleViewDetails = async (id: string) => {
+    try {
+      setIsLoadingDetail(true);
+      setShowDetailsModal(true);
+      const headers = getAuthHeader();
+      const res = await axios.get(`http://localhost:5900/api/suppliers/requirements/${id}`, { headers });
+      setSelectedRequirement(res.data.requirement);
+    } catch (err: any) {
+      toast.error('Failed to load requirement details');
+      setShowDetailsModal(false);
+    } finally {
+      setIsLoadingDetail(false);
+    }
   };
 
-  const handlePrepareQuotation = (id: string) => {
-    navigate('/create-quotation', { state: { requirementId: id } });
+  const handlePrepareQuotation = (requirement: Requirement) => {
+    navigate('/supplier/create-quotation', { 
+      state: { 
+        requirementId: requirement.id,
+        requirementRef: requirement.requirementId,
+        items: requirement.items 
+      } 
+    });
   };
 
   return (
@@ -109,7 +178,7 @@ export function CustomerRequirements() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
               <FileText className="w-5 h-5" />
-              <span className="text-green-100">Requirements Management</span>
+              <span className="text-green-100 uppercase tracking-wider text-xs font-bold">Requirements Management</span>
             </div>
             <h1 className="text-3xl mb-2">Customer Requirements</h1>
             <p className="text-green-100">Review customer requests and prepare quotations</p>
@@ -119,21 +188,20 @@ export function CustomerRequirements() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { label: 'New Requests', count: requirements.filter(r => r.status === 'new').length, color: 'blue', icon: FileText },
-            { label: 'Quoted', count: requirements.filter(r => r.status === 'quoted').length, color: 'yellow', icon: Clock },
-            { label: 'In Progress', count: requirements.filter(r => r.status === 'in-progress').length, color: 'purple', icon: Send },
-            { label: 'Completed', count: requirements.filter(r => r.status === 'completed').length, color: 'green', icon: CheckCircle },
+            { label: 'New Requests', count: stats?.new || 0, color: 'blue', icon: FileText, bg: 'from-blue-100 to-blue-200' },
+            { label: 'In Progress', count: stats?.in_progress || 0, color: 'yellow', icon: Clock, bg: 'from-yellow-100 to-amber-100' },
+            { label: 'Completed', count: stats?.completed || 0, color: 'green', icon: CheckCircle, bg: 'from-green-100 to-emerald-100' },
+            { label: 'Rejected', count: stats?.rejected || 0, color: 'red', icon: XCircle, bg: 'from-red-100 to-rose-100' },
           ].map((stat) => (
             <Card key={stat.label} className="modern-card border-0 shadow-modern-lg overflow-hidden">
-              <div className={`absolute top-0 right-0 w-32 h-32 bg-${stat.color}-100 rounded-full blur-3xl opacity-50 -mr-16 -mt-16`}></div>
               <CardContent className="pt-6 relative">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 bg-gradient-to-br from-${stat.color}-100 to-${stat.color}-200 rounded-xl flex items-center justify-center`}>
+                  <div className={`w-12 h-12 bg-gradient-to-br ${stat.bg} rounded-xl flex items-center justify-center`}>
                     <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
                   </div>
                 </div>
                 <h3 className="text-sm text-slate-600 mb-1">{stat.label}</h3>
-                <p className="text-2xl text-slate-900">{stat.count}</p>
+                <p className="text-2xl font-black text-slate-900">{stat.count}</p>
               </CardContent>
             </Card>
           ))}
@@ -163,12 +231,16 @@ export function CustomerRequirements() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="pending">New</SelectItem>
                     <SelectItem value="quoted">Quoted</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="accepted">Accepted</SelectItem>
+                    <SelectItem value="delivered">Completed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button variant="outline" size="sm" onClick={fetchData} className="border-slate-200">
+                  <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -177,60 +249,71 @@ export function CustomerRequirements() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead>Requirement ID</TableHead>
-                    <TableHead>Customer Name</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead>Total Qty</TableHead>
-                    <TableHead>Expected Delivery</TableHead>
-                    <TableHead>Uploaded Docs</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="font-bold">Requirement ID</TableHead>
+                    <TableHead className="font-bold">Customer</TableHead>
+                    <TableHead className="font-bold">Items Summary</TableHead>
+                    <TableHead className="font-bold">Date Submitted</TableHead>
+                    <TableHead className="font-bold text-center">Status</TableHead>
+                    <TableHead className="font-bold text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRequirements.map((req) => (
-                    <TableRow key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="text-slate-900">{req.id}</TableCell>
-                      <TableCell className="text-slate-900">{req.customer}</TableCell>
-                      <TableCell className="text-slate-600">{req.items} items</TableCell>
-                      <TableCell className="text-slate-900">{req.totalQuantity} units</TableCell>
-                      <TableCell className="text-slate-600">{req.expectedDelivery}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-blue-700 border-blue-300">
-                          <Download className="w-3 h-3 mr-1" />
-                          {req.uploadedDocs}
-                        </Badge>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-48 text-center text-slate-500">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-green-600" />
+                        Loading requirements...
                       </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(req.status)}>
-                          {getStatusIcon(req.status)}
-                          {req.status}
-                        </Badge>
+                    </TableRow>
+                  ) : filteredRequirements.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-slate-400 italic">
+                        No requirements found.
                       </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                            onClick={() => handleViewDetails(req.id)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {req.status === 'new' && (
+                    </TableRow>
+                  ) : (
+                    filteredRequirements.map((req) => (
+                      <TableRow key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-mono text-xs font-bold text-slate-900">{req.requirementId}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="text-slate-900 font-bold">{req.customerName}</p>
+                            <p className="text-xs text-slate-500">{req.companyName}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-slate-600 text-sm max-w-xs truncate">{req.itemSummary}</TableCell>
+                        <TableCell className="text-slate-600 text-sm">{new Date(req.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={`${getStatusColor(req.status)} capitalize border`}>
+                            {getStatusIcon(req.status)}
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="hover:bg-green-50 hover:text-green-600"
-                              onClick={() => handlePrepareQuotation(req.id)}
+                              className="hover:bg-blue-50 hover:text-blue-600 border-slate-200"
+                              onClick={() => handleViewDetails(req.id)}
                             >
-                              <Send className="w-4 h-4" />
+                              <Eye className="w-4 h-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {(req.status === 'pending') && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="hover:bg-green-50 hover:text-green-600 border-slate-200"
+                                onClick={() => handlePrepareQuotation(req)}
+                              >
+                                <Send className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -242,117 +325,145 @@ export function CustomerRequirements() {
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
         <DialogContent className="border-0 shadow-2xl max-w-4xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-xl font-black">
               <FileText className="w-5 h-5 text-green-600" />
               Requirement Details
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            {/* Customer Info */}
-            <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-xl">
-              <div>
-                <p className="text-sm text-slate-600 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-green-600" />
-                  Requirement ID
-                </p>
-                <p className="text-slate-900">REQ-20240115</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600 flex items-center gap-2">
-                  <User className="w-4 h-4 text-green-600" />
-                  Customer
-                </p>
-                <p className="text-slate-900">Acme Corp</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-green-600" />
-                  Date Submitted
-                </p>
-                <p className="text-slate-900">2024-01-15</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-green-600" />
-                  Expected Delivery
-                </p>
-                <p className="text-slate-900">2024-02-15</p>
-              </div>
+          
+          {isLoadingDetail ? (
+            <div className="py-20 text-center">
+              <Loader2 className="w-10 h-10 animate-spin mx-auto text-green-600 mb-4" />
+              <p className="text-slate-500">Loading details...</p>
             </div>
+          ) : selectedRequirement && (
+            <div className="space-y-6">
+              {/* Customer Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-green-50 rounded-2xl border border-green-100">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Requirement ID</p>
+                    <p className="text-slate-900 font-bold font-mono">{selectedRequirement.requirementId}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Customer</p>
+                    <p className="text-slate-900 font-bold">{selectedRequirement.customerName}</p>
+                    <p className="text-xs text-slate-500">{selectedRequirement.companyName}</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date Submitted</p>
+                    <p className="text-slate-900 font-bold">{new Date(selectedRequirement.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                    <Badge className={`${getStatusColor(selectedRequirement.status)} capitalize border-2`}>
+                      {getStatusIcon(selectedRequirement.status)}
+                      {selectedRequirement.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
 
-            {/* Items Table */}
-            <div>
-              <h4 className="text-slate-900 mb-3 flex items-center gap-2">
-                <Package className="w-4 h-4 text-green-600" />
-                Requested Items
-              </h4>
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
-                      <TableHead>Item</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {requirementItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-slate-900">{item.name}</TableCell>
-                        <TableCell className="text-slate-900">{item.quantity}</TableCell>
-                        <TableCell className="text-slate-600">{item.unit}</TableCell>
-                        <TableCell className="text-slate-600">{item.notes}</TableCell>
+              {/* Items Table */}
+              <div>
+                <h4 className="text-sm font-black text-slate-900 mb-3 flex items-center gap-2 uppercase tracking-widest">
+                  <Package className="w-4 h-4 text-green-600" />
+                  Requested Items
+                </h4>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 hover:bg-slate-50">
+                        <TableHead className="font-bold">Item</TableHead>
+                        <TableHead className="font-bold text-center">Quantity</TableHead>
+                        <TableHead className="font-bold">Unit</TableHead>
+                        <TableHead className="font-bold">Expected Delivery</TableHead>
+                        <TableHead className="font-bold">Notes</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedRequirement.items.map((item, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="text-slate-900 font-bold">{item.itemName}</TableCell>
+                          <TableCell className="text-slate-900 text-center font-black">{item.quantity}</TableCell>
+                          <TableCell className="text-slate-600">{item.unit}</TableCell>
+                          <TableCell className="text-slate-600 text-sm">
+                            {item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate).toLocaleDateString() : 'N/A'}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs italic">{item.notes || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
 
-            {/* Uploaded Documents */}
-            <div>
-              <h4 className="text-slate-900 mb-3 flex items-center gap-2">
-                <Download className="w-4 h-4 text-green-600" />
-                Uploaded Documents (2)
-              </h4>
-              <div className="space-y-2">
-                {['Specification_Document.pdf', 'Reference_Images.zip'].map((doc, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              {/* Uploaded Documents */}
+              {selectedRequirement.attachedDocument && (
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 mb-3 flex items-center gap-2 uppercase tracking-widest">
+                    <Download className="w-4 h-4 text-green-600" />
+                    Attached Document
+                  </h4>
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-blue-600" />
+                      <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-blue-600" />
                       </div>
-                      <span className="text-sm text-slate-900">{doc}</span>
+                      <div>
+                        <span className="text-sm font-bold text-slate-900">Reference Document</span>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Click download to view specifications</p>
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Download className="w-4 h-4" />
+                    <Button 
+                      variant="outline" 
+                      className="border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
+                      onClick={() => window.open(`http://localhost:5900/${selectedRequirement.attachedDocument?.replace(/\\/g, '/')}`, '_blank')}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
                     </Button>
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Rejection Reason */}
+              {selectedRequirement.status === 'rejected' && selectedRequirement.rejectReason && (
+                <div className="p-4 bg-red-50 rounded-xl border border-red-100 flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-red-800 uppercase tracking-widest mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700">{selectedRequirement.rejectReason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDetailsModal(false)}
+                  className="h-12 px-6 rounded-xl"
+                >
+                  Close
+                </Button>
+                {selectedRequirement.status === 'pending' && (
+                  <Button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      handlePrepareQuotation(selectedRequirement);
+                    }}
+                    className="h-12 px-8 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg shadow-green-200"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Prepare Quotation
+                  </Button>
+                )}
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 justify-end pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setShowDetailsModal(false)}
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  handlePrepareQuotation(selectedRequirement || '');
-                }}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Prepare Quotation
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </SupplierLayout>

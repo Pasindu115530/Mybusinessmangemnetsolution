@@ -10,7 +10,9 @@ import {
     updateOrderStatus,
     issueOrderItems,
     confirmOrderDelivery,
-    restockRejectedItems
+    restockRejectedItems,
+    getAllPurchaseOrders,
+    updatePurchaseOrderStatus
 } from "../controllers/orderController.js";
 
 const orderRouter = express.Router();
@@ -25,6 +27,10 @@ orderRouter.put("/:id/status", updateOrderStatus);
 orderRouter.put("/:id/issue-items", issueOrderItems);
 orderRouter.put("/confirm-delivery/:id", confirmOrderDelivery);
 orderRouter.put("/restock-rejected/:id", restockRejectedItems);
+
+// Purchase Order Routes for Admin
+orderRouter.get("/purchase-orders", getAllPurchaseOrders);
+orderRouter.put("/purchase-orders/:id/status", updatePurchaseOrderStatus);
 
 // 2. Stats cards tika sandaha routes
 orderRouter.get("/pending-count/:customerId", getPendingOrderCountByCustomer);

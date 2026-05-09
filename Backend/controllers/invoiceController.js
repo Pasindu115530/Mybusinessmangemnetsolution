@@ -346,3 +346,54 @@ export const createCustomerInvoice = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// ================================
+//   ADMIN – GET ALL SUPPLIER INVOICES
+// ================================
+export const getAllSupplierInvoices = async (req, res) => {
+    try {
+        const invoices = await Invoice.find({ invoiceType: "supplier" }).sort({ date: -1 });
+        res.json(invoices);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ================================
+//   ADMIN – ACCEPT SUPPLIER INVOICE (mark as paid by admin)
+// ================================
+export const acceptSupplierInvoice = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await Invoice.findById(id);
+        if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+        invoice.status = "paid";
+        invoice.payment_status = "paid";
+        await invoice.save();
+
+        res.json({ message: "Supplier invoice accepted and marked as paid", invoice });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ================================
+//   ADMIN – REJECT SUPPLIER INVOICE
+// ================================
+export const rejectSupplierInvoice = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await Invoice.findById(id);
+        if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+        invoice.status = "unpaid";
+        invoice.payment_status = "unpaid";
+        invoice.notes = (invoice.notes || "") + "\nAdmin: Invoice rejected. Please review and resubmit.";
+        await invoice.save();
+
+        res.json({ message: "Supplier invoice rejected", invoice });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
