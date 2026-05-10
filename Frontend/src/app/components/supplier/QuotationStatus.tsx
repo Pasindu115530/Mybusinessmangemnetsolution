@@ -34,12 +34,17 @@ interface QuotationItem {
 }
 
 interface Quotation {
-  id: string;
-  quotationId: string;
-  requirementRef: string;
+  _id: string;
+  id?: string; // fallback
+  quotationId?: string; // frontend legacy
+  quotationID?: string; // backend field
+  sq_id?: string; // backend field
+  requirementId?: string; // backend field
+  requirementRef?: string; // frontend field
   total: number;
   status: string;
   adminNotes?: string;
+  notes?: string; // backend field
   date: string;
   validUntil: string;
   items: QuotationItem[];
@@ -129,8 +134,9 @@ export function QuotationStatus() {
   const filteredQuotations = quotations.filter(quot => {
     const q = searchQuery.toLowerCase();
     return (
-      (quot.quotationId || '').toLowerCase().includes(q) ||
-      (quot.requirementRef || '').toLowerCase().includes(q)
+      (quot.sq_id || '').toLowerCase().includes(q) ||
+      (quot.quotationID || '').toLowerCase().includes(q) ||
+      (quot.requirementId || '').toLowerCase().includes(q)
     );
   });
 
@@ -169,7 +175,7 @@ export function QuotationStatus() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { label: 'Total Submitted', count: stats?.total || 0, color: 'blue', icon: FileText, bg: 'from-blue-50 to-blue-100' },
+            { label: 'Total Submitted', count: stats?.total || 0, color: 'blue', icon: FileText, bg: 'from-blue-50 to-blue-100', value: `LKR ${(quotations.reduce((s,q) => s + q.total, 0)).toLocaleString()}` },
             { label: 'Pending Review', count: stats?.pending || 0, color: 'yellow', icon: Clock, bg: 'from-yellow-50 to-amber-100' },
             { label: 'Approved', count: stats?.approved || 0, color: 'green', icon: CheckCircle, bg: 'from-green-50 to-emerald-100' },
             { label: 'Rejected', count: stats?.rejected || 0, color: 'red', icon: XCircle, bg: 'from-red-50 to-rose-100' },
@@ -182,7 +188,7 @@ export function QuotationStatus() {
                   </div>
                 </div>
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</h3>
-                <p className="text-2xl font-black text-slate-900">{stat.count}</p>
+                <p className="text-2xl font-black text-slate-900">{stat.label === 'Total Submitted' ? stat.value : stat.count}</p>
               </CardContent>
             </Card>
           ))}
@@ -252,12 +258,12 @@ export function QuotationStatus() {
                     </TableRow>
                   ) : (
                     filteredQuotations.map((quot) => (
-                      <TableRow key={quot.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0 group">
+                      <TableRow key={quot._id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0 group">
                         <TableCell className="font-mono text-xs font-bold text-slate-400 group-hover:text-green-600 transition-colors">
-                          {quot.quotationId}
+                          {quot.sq_id || quot.quotationID}
                         </TableCell>
-                        <TableCell className="text-slate-600 text-xs font-bold">{quot.requirementRef || 'Direct'}</TableCell>
-                        <TableCell className="text-slate-900 font-black">${quot.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-slate-600 text-xs font-bold">{quot.requirementId || 'Direct'}</TableCell>
+                        <TableCell className="text-slate-900 font-black">LKR {quot.total.toLocaleString()}</TableCell>
                         <TableCell className="text-slate-600 text-sm font-bold">{new Date(quot.date).toLocaleDateString()}</TableCell>
                         <TableCell className="text-center">
                           <Badge className={`${getStatusColor(quot.status)} text-[10px] border capitalize px-3`}>
@@ -271,7 +277,7 @@ export function QuotationStatus() {
                               variant="outline" 
                               size="sm" 
                               className="h-8 w-8 p-0 border-slate-200 hover:bg-blue-50 hover:text-blue-600"
-                              onClick={() => handleViewDetails(quot.id)}
+                              onClick={() => handleViewDetails(quot._id)}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -315,11 +321,11 @@ export function QuotationStatus() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Quote ID</p>
-                    <p className="text-xs font-bold text-slate-900 font-mono">{selectedQuotation.quotationId}</p>
+                    <p className="text-xs font-bold text-slate-900 font-mono">{selectedQuotation.sq_id || selectedQuotation.quotationID}</p>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Requirement</p>
-                    <p className="text-xs font-bold text-slate-900 font-mono">{selectedQuotation.requirementRef || 'Direct'}</p>
+                    <p className="text-xs font-bold text-slate-900 font-mono">{selectedQuotation.requirementId || 'Direct'}</p>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Submitted On</p>
@@ -351,16 +357,16 @@ export function QuotationStatus() {
                           <TableRow key={idx}>
                             <TableCell className="font-bold text-slate-900">{item.itemName}</TableCell>
                             <TableCell className="text-center font-black">{item.quantity} {item.unit}</TableCell>
-                            <TableCell className="text-right text-slate-600">${item.unitPrice?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-slate-600">LKR {item.unitPrice?.toLocaleString()}</TableCell>
                             <TableCell className="text-right font-black text-slate-900">
-                              ${item.subtotal?.toLocaleString()}
+                              LKR {item.subtotal?.toLocaleString()}
                             </TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-slate-50/30">
                           <TableCell colSpan={3} className="text-right font-black uppercase tracking-tighter text-slate-400">Grand Total</TableCell>
                           <TableCell className="text-right font-black text-green-600 text-lg">
-                            ${selectedQuotation.total.toLocaleString()}
+                            LKR {selectedQuotation.total.toLocaleString()}
                           </TableCell>
                         </TableRow>
                       </TableBody>
@@ -368,7 +374,7 @@ export function QuotationStatus() {
                   </div>
                 </div>
 
-                {selectedQuotation.adminNotes && (
+                {(selectedQuotation.adminNotes || selectedQuotation.notes) && (
                   <div className={`p-4 rounded-xl flex gap-3 ${
                     selectedQuotation.status === 'rejected' ? 'bg-red-50 border border-red-100' : 'bg-green-50 border border-green-100'
                   }`}>
@@ -382,7 +388,7 @@ export function QuotationStatus() {
                       <p className={`text-sm ${
                         selectedQuotation.status === 'rejected' ? 'text-red-700' : 'text-green-700'
                       }`}>
-                        {selectedQuotation.adminNotes}
+                        {selectedQuotation.adminNotes || selectedQuotation.notes}
                       </p>
                     </div>
                   </div>

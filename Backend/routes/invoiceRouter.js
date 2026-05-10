@@ -1,6 +1,6 @@
 import express from "express"
-import { getPaidInvoiceCountByCustomer, getUnpaidInvoiceCountByCustomer, getOverDueInvoiceCountByCustomer, getInvoicesByCustomer, createPaymentForInvoice, createCustomerInvoice, getAllInvoices, acceptPayment, rejectPayment, getAllSupplierInvoices, acceptSupplierInvoice, rejectSupplierInvoice } from "../controllers/invoiceController.js";
-import { uploadPaymentProof } from "../middleware/uploadMiddleware.js";
+import { getPaidInvoiceCountByCustomer, getUnpaidInvoiceCountByCustomer, getOverDueInvoiceCountByCustomer, getInvoicesByCustomer, createPaymentForInvoice, createCustomerInvoice, getAllInvoices, acceptPayment, rejectPayment } from "../controllers/invoiceController.js";
+import { uploadPaymentProof } from "../middleware/uploadMiddleware.js"
 
 const invoiceRouter = express.Router()
 
@@ -14,9 +14,4 @@ invoiceRouter.post("/:invoiceID/payment", uploadPaymentProof.single("paymentProo
 invoiceRouter.put("/accept-payment/:id", acceptPayment);
 invoiceRouter.put("/reject-payment/:id", rejectPayment);
 
-// Admin Supplier Invoice routes
-invoiceRouter.get("/supplier-all", getAllSupplierInvoices);
-invoiceRouter.put("/supplier/accept/:id", acceptSupplierInvoice);
-invoiceRouter.put("/supplier/reject/:id", rejectSupplierInvoice);
-
-export default invoiceRouter
+export default invoiceRouter

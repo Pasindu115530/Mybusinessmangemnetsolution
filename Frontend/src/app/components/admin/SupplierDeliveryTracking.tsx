@@ -21,9 +21,12 @@ import {
 } from 'lucide-react';
 
 interface OrderItem {
+  productID: string;
   name: string;
   quantity: number;
+  issuedQuantity: number;
   receivedQuantity?: number;
+  rejectedQuantity?: number;
   price?: number;
 }
 
@@ -46,19 +49,15 @@ export function SupplierDeliveryTracking() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [receivedQtys, setReceivedQtys] = useState<{ [key: string]: number }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchOrders = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('http://localhost:5900/api/orders');
-      const all = Array.isArray(res.data) ? res.data : (res.data.orders || []);
-      // Filter: purchase orders (supplier orders) — use orderType or quotationRef pattern
-      // The admin orders endpoint returns mapped data; look for purchase orders
-      const purchaseOrders = all.filter((o: any) => 
-        o.orderType === 'purchase' || o.quotationRef === 'N/A' === false
-      );
-      // If no orderType distinction, use all orders for now (admin view)
-      setOrders(purchaseOrders.length > 0 ? purchaseOrders : all);
+      const res = await axios.get('http://localhost:5900/api/supplier-orders');
+      setOrders(res.data.orders || []);
     } catch (err) {
       console.error('Failed to load orders:', err);
       toast.error('Failed to load supplier delivery data');
@@ -338,9 +337,25 @@ export function SupplierDeliveryTracking() {
               </div>
 
               {selected.status === 'dispatched' && (
-                <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 flex items-center gap-3 text-blue-800">
-                  <Truck className="w-5 h-5 shrink-0" />
-                  <p className="text-sm font-medium">Shipment is in transit. Awaiting delivery confirmation.</p>
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 flex items-center gap-3 text-blue-800">
+                    <Truck className="w-5 h-5 shrink-0" />
+                    <p className="text-sm font-medium">Shipment is in transit. Awaiting delivery confirmation.</p>
+                  </div>
+                  <Button 
+                    className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl"
+                    onClick={() => {
+                      const initial: { [key: string]: number } = {};
+                      selected.items.forEach(item => {
+                        initial[item.productID] = item.issuedQuantity || item.quantity;
+                      });
+                      setReceivedQtys(initial);
+                      setShowReceiveModal(true);
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Confirm Items Received
+                  </Button>
                 </div>
               )}
               {selected.status === 'pending' && (
@@ -353,6 +368,92 @@ export function SupplierDeliveryTracking() {
               <Button variant="outline" className="w-full" onClick={() => setShowModal(false)}>Close</Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Receive Modal */}
+      <Dialog open={showReceiveModal} onOpenChange={setShowReceiveModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-black">
+              <CheckCircle className="w-5 h-5 text-teal-600" />
+              Confirm Delivery Reception
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-slate-600 mb-4">
+              Verify the items received from the supplier. Specify the accepted quantity; the difference will be marked as rejected.
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead>Item Name</TableHead>
+                    <TableHead className="text-center">Dispatched Qty</TableHead>
+                    <TableHead className="w-32">Received Qty</TableHead>
+                    <TableHead className="text-center text-red-600">Rejected</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selected?.items?.map((item) => (
+                    <TableRow key={item.productID}>
+                      <TableCell className="font-bold text-slate-900">{item.name}</TableCell>
+                      <TableCell className="text-center font-black">{item.issuedQuantity || 0}</TableCell>
+                      <TableCell>
+                        <Input 
+                          type="number"
+                          min="0"
+                          max={item.issuedQuantity || 0}
+                          value={receivedQtys[item.productID] ?? (item.issuedQuantity || 0)}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setReceivedQtys(prev => ({ ...prev, [item.productID]: Math.min(val, item.issuedQuantity || 0) }));
+                          }}
+                          className="h-9 border-teal-200 font-bold text-center"
+                        />
+                      </TableCell>
+                      <TableCell className="text-center font-black text-red-600">
+                        {(item.issuedQuantity || 0) - (receivedQtys[item.productID] ?? (item.issuedQuantity || 0))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4 border-t">
+            <Button variant="outline" className="flex-1" onClick={() => setShowReceiveModal(false)}>Cancel</Button>
+            <Button 
+              className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold"
+              disabled={isSubmitting}
+              onClick={async () => {
+                if (!selected) return;
+                try {
+                  setIsSubmitting(true);
+                  const itemsToUpdate = selected.items.map(item => {
+                    const received = receivedQtys[item.productID] ?? (item.issuedQuantity || 0);
+                    return {
+                      productID: item.productID,
+                      receivedQuantity: received,
+                      rejectedQuantity: (item.issuedQuantity || 0) - received
+                    };
+                  });
+                  await axios.put(`http://localhost:5900/api/supplier-orders/${selected._id}/confirm-delivery`, {
+                    items: itemsToUpdate
+                  });
+                  toast.success("Delivery confirmed successfully");
+                  setShowReceiveModal(false);
+                  setShowModal(false);
+                  fetchOrders();
+                } catch (err) {
+                  toast.error("Failed to confirm delivery");
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Finalize Reception"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </AdminLayout>

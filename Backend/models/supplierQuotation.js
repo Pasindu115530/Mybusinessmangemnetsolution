@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 
-const quotationSchema = new mongoose.Schema({
-  // Customer සම්බන්ධ කරන ප්‍රධාන ලින්ක් එක
+const supplierQuotationSchema = new mongoose.Schema({
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -30,10 +29,34 @@ const quotationSchema = new mongoose.Schema({
   ],
   requirementId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Requirement",
+    ref: "SupplierRequirement",
     default: null,
   },
+  supplierId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+  supplierEmail: {
+    type: String,
+    default: null,
+  },
+  sq_id: { type: String, default: null },
+  validUntil: { type: Date },
+  total_estimate: { type: Number, default: 0 },
+  subtotal: { type: Number, default: 0 },
+  tax_amount: { type: Number, default: 0 },
+  currency: { type: String, default: "LKR" },
 }, { timestamps: true });
 
-const Quotation = mongoose.model('Quotation', quotationSchema);
-export default Quotation;
+// Auto-generate SQ ID
+supplierQuotationSchema.pre("save", async function (next) {
+  if (!this.sq_id) {
+    const count = await mongoose.models.SupplierQuotation.countDocuments();
+    this.sq_id = `SQ-${String(count + 1).padStart(5, "0")}`;
+  }
+  next();
+});
+
+const SupplierQuotation = mongoose.model('SupplierQuotation', supplierQuotationSchema);
+export default SupplierQuotation;

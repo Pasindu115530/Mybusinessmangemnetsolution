@@ -52,12 +52,19 @@ export function SupplierInvoicesAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   const fetchInvoices = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('http://localhost:5900/api/invoices/supplier-all');
-      setInvoices(res.data || []);
+      const headers = getAuthHeader();
+      const res = await axios.get('http://localhost:5900/api/supplier-invoices', { headers });
+      setInvoices(res.data.invoices || []);
     } catch (err) {
       console.error('Error fetching supplier invoices:', err);
       toast.error('Failed to load supplier invoices');
@@ -79,23 +86,31 @@ export function SupplierInvoicesAdmin() {
 
   const handleAccept = async (id: string) => {
     try {
-      await axios.put(`http://localhost:5900/api/invoices/supplier/accept/${id}`);
+      setIsProcessing(true);
+      const headers = getAuthHeader();
+      await axios.put(`http://localhost:5900/api/supplier-invoices/accept-payment/${id}`, {}, { headers });
       toast.success('Invoice marked as paid — supplier will receive payment confirmation');
       fetchInvoices();
       setShowInvoiceModal(false);
     } catch (err) {
       toast.error('Failed to accept invoice');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleReject = async (id: string) => {
     try {
-      await axios.put(`http://localhost:5900/api/invoices/supplier/reject/${id}`);
+      setIsProcessing(true);
+      const headers = getAuthHeader();
+      await axios.put(`http://localhost:5900/api/supplier-invoices/reject-payment/${id}`, {}, { headers });
       toast.error('Invoice rejected — supplier notified to review');
       fetchInvoices();
       setShowInvoiceModal(false);
     } catch (err) {
       toast.error('Failed to reject invoice');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -236,14 +251,16 @@ export function SupplierInvoicesAdmin() {
                       variant="outline"
                       className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
                       onClick={() => handleReject(selectedInvoice._id)}
+                      disabled={isProcessing}
                     >
-                      <X className="w-4 h-4 mr-2" /> Reject
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <X className="w-4 h-4 mr-2" />} Reject
                     </Button>
                     <Button
                       className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200"
                       onClick={() => handleAccept(selectedInvoice._id)}
+                      disabled={isProcessing}
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" /> Mark as Paid
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Mark as Paid
                     </Button>
                   </>
                 )}

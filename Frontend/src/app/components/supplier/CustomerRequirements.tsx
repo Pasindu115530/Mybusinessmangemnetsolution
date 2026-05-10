@@ -104,6 +104,7 @@ export function CustomerRequirements() {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'pending':
+      case 'sent':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'quoted':
       case 'accepted':
@@ -120,6 +121,7 @@ export function CustomerRequirements() {
   const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'pending':
+      case 'sent':
         return <FileText className="w-3 h-3 mr-1" />;
       case 'quoted':
       case 'accepted':
@@ -299,14 +301,15 @@ export function CustomerRequirements() {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            {(req.status === 'pending') && (
+                            {(req.status === 'pending' || req.status === 'sent') && (
                               <Button 
                                 variant="outline" 
                                 size="sm" 
                                 className="hover:bg-green-50 hover:text-green-600 border-slate-200"
                                 onClick={() => handlePrepareQuotation(req)}
                               >
-                                <Send className="w-4 h-4" />
+                                <Send className="w-4 h-4 mr-2" />
+                                Create Quotation
                               </Button>
                             )}
                           </div>

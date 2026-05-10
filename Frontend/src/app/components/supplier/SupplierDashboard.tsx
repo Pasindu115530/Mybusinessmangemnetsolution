@@ -123,7 +123,7 @@ export function SupplierDashboard() {
             { label: 'New Requirements', value: stats?.newRequirements || 0, icon: FileText, color: 'blue', bg: 'from-blue-50 to-blue-100', text: 'text-blue-600' },
             { label: 'Pending Quotations', value: stats?.pendingQuotations || 0, icon: Clock, color: 'yellow', bg: 'from-yellow-50 to-amber-100', text: 'text-amber-600' },
             { label: 'Active Orders', value: stats?.activeOrders || 0, icon: ShoppingCart, color: 'purple', bg: 'from-purple-50 to-indigo-100', text: 'text-indigo-600' },
-            { label: 'Total Revenue', value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green', bg: 'from-green-50 to-emerald-100', text: 'text-emerald-600' },
+            { label: 'Total Revenue', value: `LKR ${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green', bg: 'from-green-50 to-emerald-100', text: 'text-emerald-600' },
           ].map((stat) => (
             <Card key={stat.label} className="modern-card border-0 shadow-modern-lg overflow-hidden group hover:-translate-y-1 transition-all duration-300">
               <CardContent className="pt-6 relative">
@@ -204,16 +204,38 @@ export function SupplierDashboard() {
                   <div className="py-12 text-center text-slate-400 italic text-sm">No recent requirements</div>
                 ) : (
                   recentRequirements.map((req) => (
-                    <div key={req.id} className="p-4 bg-white rounded-xl border border-slate-100 hover:border-green-300 hover:shadow-md transition-all cursor-pointer group">
+                    <div key={req.id} className="p-4 bg-white rounded-xl border border-slate-100 hover:border-green-300 hover:shadow-md transition-all group">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-black font-mono text-slate-400 group-hover:text-green-600 transition-colors">
                           REQ-{req.id.toString().slice(-5).toUpperCase()}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">{new Date(req.createdAt).toLocaleDateString()}</span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-3">
                         <span className="text-slate-900 font-bold text-sm">{req.previewTitle}</span>
                         <Badge variant="outline" className="text-[10px] bg-slate-50">{req.itemCount} Items</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          asChild
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 h-8 text-[10px] font-black uppercase tracking-widest border-slate-200 hover:bg-green-50 hover:text-green-600"
+                        >
+                          <Link to="/supplier/create-quotation" state={{ requirementId: req.id, requirementRef: req.requirementId, items: req.items }}>
+                            <Send className="w-3 h-3 mr-1" /> Create Quotation
+                          </Link>
+                        </Button>
+                        <Button 
+                          asChild
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-green-600 hover:bg-green-50"
+                        >
+                          <Link to="/supplier/requirements">
+                            <ArrowRight className="w-4 h-4" />
+                          </Link>
+                        </Button>
                       </div>
                     </div>
                   ))
@@ -253,7 +275,7 @@ export function SupplierDashboard() {
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-900 font-bold text-sm">Total: ${order.total.toLocaleString()}</span>
+                        <span className="text-slate-900 font-bold text-sm">Total: LKR {order.total.toLocaleString()}</span>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">{new Date(order.date).toLocaleDateString()}</span>
                       </div>
                     </div>
@@ -305,7 +327,7 @@ export function SupplierDashboard() {
                           {payment.bill_id}
                         </TableCell>
                         <TableCell className="text-slate-600 text-xs font-bold">{payment.purchaseOrderRef}</TableCell>
-                        <TableCell className="text-slate-900 font-black">${payment.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-slate-900 font-black">LKR {payment.total.toLocaleString()}</TableCell>
                         <TableCell className="text-slate-500 text-xs font-bold">
                           {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'N/A'}
                         </TableCell>

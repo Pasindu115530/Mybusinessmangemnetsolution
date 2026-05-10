@@ -1,5 +1,5 @@
 import express from "express";
-import { getPendingQuotationCount, getPendingQuotations, getAcceptedQuotationsCount, getRejectedQuotationsCount, getExpiredQuotationsCount, getAllQuotations, getAllQuotationsByCustomer, getPendingQuotationsByCustomer, rejectQuotation, acceptQuotation, createSupplierQuotation } from "../controllers/quotationController.js";
+import { getPendingQuotationCount, getPendingQuotations, getAcceptedQuotationsCount, getRejectedQuotationsCount, getExpiredQuotationsCount, getAllQuotations, getAllQuotationsByCustomer, getPendingQuotationsByCustomer, rejectQuotation, acceptQuotation } from "../controllers/quotationController.js";
 
 const quotationRouter = express.Router();
 
@@ -13,6 +13,5 @@ quotationRouter.get("/expired-count", getExpiredQuotationsCount);
 quotationRouter.get("/customer/:customerId", getAllQuotationsByCustomer);
 quotationRouter.put("/reject/:id", rejectQuotation);
 quotationRouter.put("/accept/:id", acceptQuotation);
-quotationRouter.post("/create-supplier-quotation", createSupplierQuotation );
 
-export default quotationRouter;
+export default quotationRouter;

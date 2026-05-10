@@ -66,7 +66,7 @@ export function PurchaseOrders() {
   const fetchOrders = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('http://localhost:5900/api/orders/purchase-orders', {
+      const res = await axios.get('http://localhost:5900/api/supplier-orders', {
         headers: getAuthHeader()
       });
       setPurchaseOrders(res.data.orders || []);
@@ -85,7 +85,7 @@ export function PurchaseOrders() {
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
       setIsUpdatingStatus(true);
-      await axios.put(`http://localhost:5900/api/orders/purchase-orders/${id}/status`, 
+      await axios.put(`http://localhost:5900/api/supplier-orders/${id}/status`, 
         { status: newStatus }, 
         { headers: getAuthHeader() }
       );
@@ -211,7 +211,7 @@ export function PurchaseOrders() {
                               </div>
                             </TableCell>
                             <TableCell className="py-4 text-slate-500 text-sm">{new Date(order.orderDate).toLocaleDateString()}</TableCell>
-                            <TableCell className="py-4 font-black text-slate-900">${order.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell className="py-4 font-black text-slate-900">LKR {order.totalAmount.toLocaleString()}</TableCell>
                             <TableCell className="py-4 text-center">
                               <Badge className={`${getStatusColor(order.status)} border capitalize px-3 h-6 text-[10px] font-bold`}>
                                 {order.status}

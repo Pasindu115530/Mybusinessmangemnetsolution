@@ -56,10 +56,8 @@ export function SupplierQuotationsAdmin() {
   const fetchQuotations = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('http://localhost:5900/api/quotations/all');
-      const all = res.data || [];
-      // Filter supplier-type quotations
-      setQuotations(all.filter((q: Quotation) => q.quotationType === 'supplier' || !q.quotationType));
+      const res = await axios.get('http://localhost:5900/api/suppliers/quotations/all');
+      setQuotations(res.data.quotations || res.data || []);
     } catch (err) {
       console.error('Failed to load quotations:', err);
       toast.error('Failed to load supplier quotations');
@@ -83,7 +81,7 @@ export function SupplierQuotationsAdmin() {
 
   const handleApprove = async (id: string) => {
     try {
-      await axios.put(`http://localhost:5900/api/quotations/accept/${id}`);
+      await axios.put(`http://localhost:5900/api/suppliers/quotations/accept/${id}`);
       toast.success('Quotation approved');
       fetchQuotations();
       setShowModal(false);
@@ -94,7 +92,7 @@ export function SupplierQuotationsAdmin() {
 
   const handleReject = async (id: string) => {
     try {
-      await axios.put(`http://localhost:5900/api/quotations/reject/${id}`);
+      await axios.put(`http://localhost:5900/api/suppliers/quotations/reject/${id}`);
       toast.error('Quotation rejected');
       fetchQuotations();
       setShowModal(false);
@@ -198,7 +196,7 @@ export function SupplierQuotationsAdmin() {
                     filtered.map(q => (
                       <TableRow key={q._id} className="hover:bg-slate-50/50 transition-colors">
                         <TableCell className="font-mono text-xs font-bold text-slate-900">
-                          {q.quotationID || q._id.slice(-8).toUpperCase()}
+                          {q._id || q.quotationID || q._id.slice(-8).toUpperCase()}
                         </TableCell>
                         <TableCell className="text-slate-900 text-sm">{q.supplierEmail || q.companyName || '—'}</TableCell>
                         <TableCell className="text-center">
@@ -275,7 +273,7 @@ export function SupplierQuotationsAdmin() {
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wider">Quotation ID</p>
                   <p className="font-bold text-slate-900 mt-0.5 font-mono">
-                    {selected.quotationID || selected._id.slice(-8).toUpperCase()}
+                    {selected._id || selected.quotationID || selected._id.slice(-8).toUpperCase()}
                   </p>
                 </div>
                 <div>

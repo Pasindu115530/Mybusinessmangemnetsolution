@@ -48,10 +48,8 @@ export function SupplierPaymentsAdmin() {
   const fetchPayments = async () => {
     try {
       setIsLoading(true);
-      // Get all payment transactions from admin endpoint, filter for supplier type
-      const res = await axios.get('http://localhost:5900/api/paymentTransactions/getPayments');
-      const all = res.data.payments || res.data || [];
-      setPayments(all.filter((p: SupplierPayment) => p.type === 'supplier'));
+      const res = await axios.get('http://localhost:5900/api/supplier-payments');
+      setPayments(res.data.payments || []);
     } catch (err) {
       console.error('Error fetching supplier payments:', err);
       toast.error('Failed to load supplier payment data');

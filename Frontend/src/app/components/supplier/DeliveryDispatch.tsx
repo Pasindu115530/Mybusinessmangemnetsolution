@@ -63,6 +63,7 @@ export function DeliveryDispatch() {
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [driverName, setDriverName] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [issuedQtys, setIssuedQtys] = useState<{ [key: string]: number }>({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const getAuthHeader = () => {
@@ -74,7 +75,7 @@ export function DeliveryDispatch() {
     try {
       setIsLoadingOrders(true);
       const headers = getAuthHeader();
-      const res = await axios.get('http://localhost:5900/api/suppliers/orders/dispatch-list', { headers });
+      const res = await axios.get('http://localhost:5900/api/supplier-orders/dispatch-list', { headers });
       setOrders(res.data.orders || []);
       if (!selectedOrderId && res.data.orders?.length > 0) {
         setSelectedOrderId(res.data.orders[0]._id);
@@ -91,8 +92,15 @@ export function DeliveryDispatch() {
     try {
       setIsLoadingProgress(true);
       const headers = getAuthHeader();
-      const res = await axios.get(`http://localhost:5900/api/suppliers/orders/${id}/delivery-progress`, { headers });
+      const res = await axios.get(`http://localhost:5900/api/supplier-orders/${id}/delivery-progress`, { headers });
       setProgress(res.data.progress);
+      
+      // Initialize issued quantities
+      const initialQtys: { [key: string]: number } = {};
+      res.data.progress.items.forEach((item: any) => {
+        initialQtys[item.productID] = item.issued || item.ordered;
+      });
+      setIssuedQtys(initialQtys);
     } catch (err: any) {
       console.error('Progress fetch error:', err);
     } finally {
@@ -116,10 +124,16 @@ export function DeliveryDispatch() {
     try {
       setIsDispatching(true);
       const headers = getAuthHeader();
-      await axios.post(`http://localhost:5900/api/suppliers/orders/${selectedOrderId}/dispatch`, {
+      const dispatchItems = progress?.items.map(item => ({
+        productID: item.productID,
+        issuedQuantity: issuedQtys[item.productID] || item.ordered
+      }));
+
+      await axios.put(`http://localhost:5900/api/supplier-orders/${selectedOrderId}/dispatch`, {
         vehicleNumber,
         driverName,
-        deliveryNotes
+        deliveryNotes,
+        items: dispatchItems
       }, { headers });
       
       setShowSuccessModal(true);
@@ -315,7 +329,18 @@ export function DeliveryDispatch() {
                           <TableCell className="pl-6 py-4 font-bold text-slate-700">{item.name}</TableCell>
                           <TableCell className="text-center font-black text-slate-400">{item.ordered}</TableCell>
                           <TableCell className="text-center">
-                            <Badge className="bg-blue-50 text-blue-600 border-blue-100">{item.issued}</Badge>
+                            <Input 
+                              type="number"
+                              min="0"
+                              max={item.ordered}
+                              value={issuedQtys[item.productID] ?? item.ordered}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                setIssuedQtys(prev => ({ ...prev, [item.productID]: Math.min(val, item.ordered) }));
+                              }}
+                              className="w-20 h-8 mx-auto text-center font-bold border-green-200"
+                              disabled={selectedOrderObj?.status === 'dispatched' || selectedOrderObj?.status === 'delivered'}
+                            />
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge className="bg-green-50 text-green-600 border-green-100">{item.received}</Badge>

@@ -23,7 +23,9 @@ import {
   Calendar,
   Package,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  History,
+  RefreshCw
 } from 'lucide-react';
 
 interface InvoiceableOrder {
@@ -57,6 +59,8 @@ export function InvoiceSubmission() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedBillId, setSubmittedBillId] = useState('');
+  const [submittedInvoices, setSubmittedInvoices] = useState<SupplierInvoice[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
   const getAuthHeader = () => {
     const token = localStorage.getItem('supplierToken') || localStorage.getItem('token');
@@ -67,7 +71,7 @@ export function InvoiceSubmission() {
     const fetchOrders = async () => {
       try {
         setIsLoadingOrders(true);
-        const res = await axios.get('http://localhost:5900/api/suppliers/invoices/invoiceable-orders', {
+        const res = await axios.get('http://localhost:5900/api/supplier-orders/invoiceable-orders', {
           headers: getAuthHeader(),
         });
         setOrders(res.data.orders || []);
@@ -81,6 +85,24 @@ export function InvoiceSubmission() {
     fetchOrders();
   }, []);
 
+  const fetchInvoices = async () => {
+    try {
+      setIsLoadingInvoices(true);
+      const res = await axios.get('http://localhost:5900/api/supplier-invoices/my', {
+        headers: getAuthHeader(),
+      });
+      setSubmittedInvoices(res.data.invoices || []);
+    } catch (err) {
+      console.error('Failed to load submitted invoices:', err);
+    } finally {
+      setIsLoadingInvoices(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
   useEffect(() => {
     if (!selectedOrder) {
       setSelectedOrderDetail(null);
@@ -91,7 +113,7 @@ export function InvoiceSubmission() {
         setIsLoadingDetail(true);
         const found = orders.find(o => o.po_id === selectedOrder);
         if (!found) return;
-        const res = await axios.get(`http://localhost:5900/api/suppliers/orders/${found.id}`, {
+        const res = await axios.get(`http://localhost:5900/api/supplier-orders/${found.id}`, {
           headers: getAuthHeader(),
         });
         setSelectedOrderDetail(res.data.order || res.data);
@@ -138,12 +160,18 @@ export function InvoiceSubmission() {
         notes,
       };
 
-      const res = await axios.post('http://localhost:5900/api/suppliers/invoices', payload, {
+      const res = await axios.post('http://localhost:5900/api/supplier-invoices', payload, {
         headers: getAuthHeader(),
       });
 
       setSubmittedBillId(res.data.invoice?.bill_id || 'N/A');
       setShowSuccessModal(true);
+      fetchInvoices(); // Refresh the list
+      // Also refresh orders to remove the one just invoiced
+      const resOrders = await axios.get('http://localhost:5900/api/supplier-orders/invoiceable-orders', {
+        headers: getAuthHeader(),
+      });
+      setOrders(resOrders.data.orders || []);
     } catch (err: any) {
       console.error('Submit error:', err);
       toast.error(err.response?.data?.message || 'Failed to submit invoice');
@@ -279,8 +307,8 @@ export function InvoiceSubmission() {
                             <TableRow key={idx} className="border-slate-100">
                               <TableCell className="pl-6 py-4 font-bold text-slate-700">{item.name}</TableCell>
                               <TableCell className="text-center font-black text-slate-400">{item.qty}</TableCell>
-                              <TableCell className="text-right text-slate-600 text-xs">${item.price.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-black text-slate-900 pr-6">${item.total.toLocaleString()}</TableCell>
+                              <TableCell className="text-right text-slate-600 text-xs">LKR {item.price.toLocaleString()}</TableCell>
+                              <TableCell className="text-right font-black text-slate-900 pr-6">LKR {item.total.toLocaleString()}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -317,17 +345,17 @@ export function InvoiceSubmission() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-400">Subtotal</span>
-                    <span className="font-bold font-mono">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span className="font-bold font-mono">LKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-400">Estimated Tax (10%)</span>
-                    <span className="font-bold font-mono">${tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span className="font-bold font-mono">LKR {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
                 
                 <div className="pt-6 border-t border-white/10">
                   <p className="text-[10px] font-black uppercase text-green-400 tracking-widest mb-1">Grand Total</p>
-                  <p className="text-4xl font-black text-white">${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p className="text-4xl font-black text-white">LKR {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
 
                 <div className="pt-6 space-y-3">
@@ -361,7 +389,73 @@ export function InvoiceSubmission() {
             </div>
           </div>
         </div>
+
+        {/* Recently Submitted Table */}
+        <Card className="modern-card border-0 shadow-modern-lg overflow-hidden">
+          <CardHeader className="bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between py-4">
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+              <History className="w-4 h-4 text-green-600" />
+              Recent Invoice Submissions
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={fetchInvoices} disabled={isLoadingInvoices}>
+              <RefreshCw className={`w-4 h-4 ${isLoadingInvoices ? 'animate-spin' : ''}`} />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/30 hover:bg-slate-50/30 border-0">
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 pl-6">Bill ID</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400">PO Ref</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400">Date</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 text-right">Amount</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingInvoices ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-green-600" />
+                      </TableCell>
+                    </TableRow>
+                  ) : submittedInvoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">No previous submissions found.</TableCell>
+                    </TableRow>
+                  ) : (
+                    submittedInvoices.slice(0, 5).map((inv) => (
+                      <TableRow key={inv._id} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="pl-6 py-4 font-mono text-[10px] font-bold text-slate-900">{inv.bill_id}</TableCell>
+                        <TableCell className="text-xs font-medium text-slate-600">{inv.purchaseOrderRef}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{new Date(inv.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right font-black text-slate-900">LKR {inv.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={`capitalize border ${
+                            inv.payment_status === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 
+                            'bg-yellow-100 text-yellow-700 border-yellow-200'
+                          }`}>
+                            {inv.payment_status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            {submittedInvoices.length > 5 && (
+              <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                <Button variant="link" className="text-xs font-bold text-green-600" onClick={() => navigate('/supplier/payments')}>
+                  View All Submissions <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
@@ -384,7 +478,7 @@ export function InvoiceSubmission() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400 font-bold uppercase text-[10px]">Total Bill</span>
-                <span className="font-black text-green-600 text-lg">${grandTotal.toLocaleString()}</span>
+                <span className="font-black text-green-600 text-lg">LKR {grandTotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-400 font-bold uppercase text-[10px]">Status</span>

@@ -54,8 +54,10 @@ export function QuotationCreation() {
     })) || [{ itemName: '', quantity: 1, unit: 'units', unitPrice: '', totalPrice: 0 }]
   );
 
-  const [requirementId] = useState(stateData.requirementId || null);
-  const [requirementRef] = useState(stateData.requirementRef || null);
+  const [availableRequirements, setAvailableRequirements] = useState<any[]>([]);
+  const [isLoadingRequirements, setIsLoadingRequirements] = useState(false);
+  const [selectedRequirementId, setSelectedRequirementId] = useState(stateData.requirementId || '');
+  const [requirementRef, setRequirementRef] = useState(stateData.requirementRef || '');
   
   const [deliveryTimeline, setDeliveryTimeline] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('net30');
@@ -64,6 +66,47 @@ export function QuotationCreation() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedData, setSubmittedData] = useState<any>(null);
+
+  const fetchRequirements = async () => {
+    try {
+      setIsLoadingRequirements(true);
+      const headers = getAuthHeader();
+      const res = await axios.get('http://localhost:5900/api/suppliers/supplier-requirements/my', { 
+        headers, 
+        params: { status: 'pending' } 
+      });
+      setAvailableRequirements(res.data.requirements || []);
+    } catch (err) {
+      console.error('Failed to fetch requirements:', err);
+    } finally {
+      setIsLoadingRequirements(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!stateData.requirementId) {
+      fetchRequirements();
+    }
+  }, []);
+
+  const handleSelectRequirement = (id: string) => {
+    const selected = availableRequirements.find(r => r.id === id);
+    if (selected) {
+      setSelectedRequirementId(selected.id);
+      setRequirementRef(selected.requirementId);
+      
+      // Auto-populate items if empty or using default
+      if (items.length === 0 || (items.length === 1 && !items[0].itemName)) {
+        setItems(selected.items.map((item: any) => ({
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unit: item.unit || 'units',
+          unitPrice: '',
+          totalPrice: 0
+        })));
+      }
+    }
+  };
 
   const addItem = () => {
     setItems([...items, { itemName: '', quantity: 1, unit: 'units', unitPrice: '', totalPrice: 0 }]);
@@ -103,7 +146,7 @@ export function QuotationCreation() {
       const headers = getAuthHeader();
       
       const payload = {
-        requirementId,
+        requirementId: selectedRequirementId || null,
         items,
         subtotal,
         tax_amount: tax,
@@ -146,9 +189,27 @@ export function QuotationCreation() {
               <span className="text-green-100 uppercase tracking-wider text-xs font-bold">Quotation Builder</span>
             </div>
             <h1 className="text-3xl mb-2 font-black">Prepare Quotation</h1>
-            <p className="text-green-100 opacity-90">
-              {requirementRef ? `Responding to Requirement: ${requirementRef}` : 'Prepare a custom quotation for customer review'}
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <p className="text-green-100 opacity-90 flex-1">
+                {requirementRef ? `Responding to Requirement: ${requirementRef}` : 'Prepare a custom quotation for customer review'}
+              </p>
+              {!stateData.requirementId && availableRequirements.length > 0 && (
+                <div className="min-w-[300px]">
+                  <Select value={selectedRequirementId} onValueChange={handleSelectRequirement}>
+                    <SelectTrigger className="bg-white/10 border-white/20 text-white placeholder:text-green-100/50">
+                      <SelectValue placeholder="Select a pending requirement" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRequirements.map(req => (
+                        <SelectItem key={req.id} value={req.id}>
+                          {req.requirementId} - {req.itemSummary.slice(0, 30)}...
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -211,7 +272,7 @@ export function QuotationCreation() {
                           </div>
                         </TableCell>
                         <TableCell className="py-4 text-right pr-6 font-black text-slate-900">
-                          ${item.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          LKR {item.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="py-4 pr-4">
                           <Button 
@@ -320,16 +381,16 @@ export function QuotationCreation() {
               <CardContent className="p-6 space-y-4">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-400">Subtotal</span>
-                  <span className="font-bold font-mono">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-bold font-mono">LKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-400">VAT / Tax (10%)</span>
-                  <span className="font-bold font-mono">${tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-bold font-mono">LKR {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="pt-4 border-t border-white/10 flex justify-between items-end">
                   <div>
                     <p className="text-[10px] font-black uppercase text-green-400 tracking-widest">Grand Total</p>
-                    <p className="text-3xl font-black text-white">${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <p className="text-3xl font-black text-white">LKR {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                   </div>
                   <Badge className="bg-green-500/20 text-green-400 border-green-500/30">LKR</Badge>
                 </div>
@@ -386,7 +447,7 @@ export function QuotationCreation() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-bold uppercase text-[10px]">Total Amount</span>
-                <span className="text-green-600 font-black">${grandTotal.toLocaleString()}</span>
+                <span className="text-green-600 font-black">LKR {grandTotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-bold uppercase text-[10px]">Status</span>

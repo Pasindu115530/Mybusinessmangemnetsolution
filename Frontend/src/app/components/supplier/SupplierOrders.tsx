@@ -78,8 +78,8 @@ export function SupplierOrders() {
       if (statusFilter !== 'all') params.status = statusFilter;
 
       const [ordersRes, statsRes] = await Promise.all([
-        axios.get('http://localhost:5900/api/suppliers/orders/all', { headers, params }),
-        axios.get('http://localhost:5900/api/suppliers/orders/stats', { headers })
+        axios.get('http://localhost:5900/api/supplier-orders/my-orders', { headers, params }),
+        axios.get('http://localhost:5900/api/supplier-orders/my-stats', { headers })
       ]);
 
       setOrders(ordersRes.data.orders || []);
@@ -144,7 +144,7 @@ export function SupplierOrders() {
     try {
       setIsProcessing(true);
       const headers = getAuthHeader();
-      await axios.patch(`http://localhost:5900/api/suppliers/orders/${selectedOrder._id}/acknowledge`, {}, { headers });
+      await axios.patch(`http://localhost:5900/api/supplier-orders/${selectedOrder._id}/acknowledge`, {}, { headers });
       toast.success('Order acknowledged successfully');
       setShowAcknowledgeModal(false);
       fetchData();
@@ -272,7 +272,7 @@ export function SupplierOrders() {
                         <TableCell className="font-mono text-xs font-bold text-slate-400 group-hover:text-green-600 transition-colors">
                           {order.po_id || 'PO-NEW'}
                         </TableCell>
-                        <TableCell className="text-slate-900 font-black">${order.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-slate-900 font-black">LKR {order.total.toLocaleString()}</TableCell>
                         <TableCell className="text-slate-600 text-sm font-bold">{new Date(order.date).toLocaleDateString()}</TableCell>
                         <TableCell className="text-slate-600 text-sm italic">
                           {order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString() : 'N/A'}
@@ -357,10 +357,10 @@ export function SupplierOrders() {
                   {selectedOrder?.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Amount</p>
-                <p className="text-lg font-black text-green-600">${selectedOrder?.total.toLocaleString()}</p>
-              </div>
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Amount</p>
+                    <p className="text-lg font-black text-green-600">LKR {selectedOrder?.total.toLocaleString()}</p>
+                  </div>
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Payment Terms</p>
                 <p className="text-sm font-bold text-slate-900">{selectedOrder?.payment_terms || 'Net 30'}</p>
@@ -387,9 +387,9 @@ export function SupplierOrders() {
                       <TableRow key={idx}>
                         <TableCell className="font-bold text-slate-900">{item.name}</TableCell>
                         <TableCell className="text-center font-black">{item.quantity}</TableCell>
-                        <TableCell className="text-right text-slate-600">${item.price.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-slate-600">LKR {item.price.toLocaleString()}</TableCell>
                         <TableCell className="text-right font-black text-slate-900">
-                          ${(item.price * item.quantity).toLocaleString()}
+                          LKR {(item.price * item.quantity).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     ))}

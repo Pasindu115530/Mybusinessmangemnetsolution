@@ -4,7 +4,7 @@ const orderSchema = new mongoose.Schema({
     
     customerId: {
         type: String,
-        required: true
+        required: false
       },
     orderID :{
         type:String,
@@ -56,7 +56,7 @@ const orderSchema = new mongoose.Schema({
             receivedQuantity: {type:Number, default: 0},
             rejectedQuantity: {type:Number, default: 0},
             restocked: {type:Boolean, default: false},
-            image: {type:String, required:true}
+            image: {type:String, required:false}
 
         }
     ],
@@ -134,7 +134,7 @@ const orderSchema = new mongoose.Schema({
 
     supplierId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Supplier",
+      ref: "User",
       default: null,
     },
 

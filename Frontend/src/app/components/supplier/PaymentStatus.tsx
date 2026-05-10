@@ -71,8 +71,8 @@ export function PaymentStatus() {
       if (searchQuery) params.search = searchQuery;
 
       const [paymentsRes, statsRes] = await Promise.all([
-        axios.get('http://localhost:5900/api/suppliers/payments/all', { headers, params }),
-        axios.get('http://localhost:5900/api/suppliers/payments/stats', { headers }),
+        axios.get('http://localhost:5900/api/supplier-payments/all', { headers, params }),
+        axios.get('http://localhost:5900/api/supplier-payments/stats', { headers }),
       ]);
 
       setPayments(paymentsRes.data.payments || []);
@@ -149,8 +149,8 @@ export function PaymentStatus() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { label: 'Total Received', value: `$${(stats?.receivedAmount || 0).toLocaleString()}`, icon: CheckCircle, color: 'text-green-600', bg: 'from-green-50 to-green-100' },
-            { label: 'In Settlement', value: `$${(stats?.pendingAmount || 0).toLocaleString()}`, icon: Clock, color: 'text-amber-600', bg: 'from-amber-50 to-amber-100' },
+            { label: 'Total Received', value: `LKR ${(stats?.receivedAmount || 0).toLocaleString()}`, icon: CheckCircle, color: 'text-green-600', bg: 'from-green-50 to-green-100' },
+            { label: 'In Settlement', value: `LKR ${(stats?.pendingAmount || 0).toLocaleString()}`, icon: Clock, color: 'text-amber-600', bg: 'from-amber-50 to-amber-100' },
             { label: 'Transactions', value: `${stats?.totalPayments || 0}`, icon: TrendingUp, color: 'text-blue-600', bg: 'from-blue-50 to-blue-100' },
             { label: 'Unsuccessful', value: `${stats?.failedPayments || 0}`, icon: XCircle, color: 'text-red-600', bg: 'from-red-50 to-rose-100' },
           ].map((card, i) => (
@@ -246,7 +246,7 @@ export function PaymentStatus() {
                           </div>
                         </TableCell>
                         <TableCell className="py-4">
-                          <span className="font-black text-slate-900">${p.amount.toLocaleString()}</span>
+                          <span className="font-black text-slate-900">LKR {p.amount.toLocaleString()}</span>
                         </TableCell>
                         <TableCell className="py-4 text-center">
                           <Badge variant="outline" className="text-[10px] font-bold uppercase bg-slate-50 border-slate-200">
@@ -315,7 +315,7 @@ export function PaymentStatus() {
                 ))}
                 <div className="col-span-2 pt-4 border-t border-slate-200 mt-2">
                   <p className="text-[10px] font-black uppercase text-green-600 tracking-widest mb-1">Disbursed Amount</p>
-                  <p className="text-3xl font-black text-slate-900">${selectedPayment.amount.toLocaleString()}</p>
+                  <p className="text-3xl font-black text-slate-900">LKR {selectedPayment.amount.toLocaleString()}</p>
                 </div>
               </div>
 
