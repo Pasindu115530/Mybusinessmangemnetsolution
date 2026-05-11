@@ -256,6 +256,35 @@ export const addPayment = async (req, res) => {
   }
 };
 
+export const updatePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const payment = await PaymentTransaction.findByIdAndUpdate(id, updateData, { new: true });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Payment updated successfully",
+      payment,
+    });
+  } catch (error) {
+    console.error("Error updating payment:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update payment",
+      error: error.message,
+    });
+  }
+};
+
 export const deletePayment = async (req, res) => {
   try {
     const { id } = req.params;

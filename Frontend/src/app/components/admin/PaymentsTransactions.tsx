@@ -155,6 +155,11 @@ export function PaymentsTransactions() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [financeTransactions, setFinanceTransactions] = useState<any[]>([]);
 
+  // New states for View/Edit
+  const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+
   useEffect(() => {
     fetchTransactions();
     fetchBankAccounts();
@@ -236,6 +241,28 @@ export function PaymentsTransactions() {
     }
   };
 
+  const handleView = (txn: Transaction) => {
+    setSelectedTxn(txn);
+    setIsViewOpen(true);
+  };
+
+  const handleEdit = (txn: Transaction) => {
+    setSelectedTxn(txn);
+    setIsEditMode(true);
+    setFormData({
+      paymentType: txn.type,
+      relatedEntity: txn.relatedEntity,
+      amount: String(txn.amount),
+      paymentMethod: txn.paymentMethod,
+      date: txn.date,
+      category: txn.category,
+      notes: txn.notes || '',
+      status: txn.status,
+      bankAccountId: txn.bankAccountId || '',
+    });
+    setShowAddModal(true);
+  };
+
   const handleSubmit = async () => {
     if (!formData.category) {
       alert('Category is required');
@@ -285,28 +312,35 @@ export function PaymentsTransactions() {
             : '',
       };
 
-      const response = await fetch(`${API_BASE}/addPayment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        isEditMode && selectedTxn
+          ? `${API_BASE}/updatePayment/${selectedTxn._id || selectedTxn.id}`
+          : `${API_BASE}/addPayment`,
+        {
+          method: isEditMode ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(result.message || 'Failed to add payment');
+        throw new Error(result.message || 'Failed to save payment');
       }
 
       setShowAddModal(false);
       setShowSuccessModal(true);
       setFormData(initialForm);
+      setIsEditMode(false);
+      setSelectedTxn(null);
       setUploadedFile(null);
       await fetchTransactions();
     } catch (error: any) {
-      console.error('Error adding payment:', error);
-      alert(error.message || 'Failed to add payment');
+      console.error('Error saving payment:', error);
+      alert(error.message || 'Failed to save payment');
     } finally {
       setSubmitLoading(false);
     }
@@ -783,10 +817,20 @@ export function PaymentsTransactions() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="hover:bg-emerald-50 hover:text-emerald-600">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="hover:bg-emerald-50 hover:text-emerald-600"
+                              onClick={() => handleView(txn)}
+                            >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button variant="outline" size="sm" className="hover:bg-blue-50 hover:text-blue-600">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="hover:bg-blue-50 hover:text-blue-600"
+                              onClick={() => handleEdit(txn)}
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                           </div>
@@ -955,8 +999,8 @@ export function PaymentsTransactions() {
         <DialogContent className="border-0 shadow-2xl max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-emerald-600" />
-              Add New Payment
+              {isEditMode ? <Edit className="w-5 h-5 text-blue-600" /> : <Plus className="w-5 h-5 text-emerald-600" />}
+              {isEditMode ? 'Edit Payment' : 'Add New Payment'}
             </DialogTitle>
           </DialogHeader>
 
@@ -1171,18 +1215,128 @@ export function PaymentsTransactions() {
           </div>
 
           <div className="flex gap-3 mt-4">
-            <Button variant="outline" onClick={() => setShowAddModal(false)} className="flex-1">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowAddModal(false);
+                setIsEditMode(false);
+                setSelectedTxn(null);
+                setFormData(initialForm);
+              }} 
+              className="flex-1"
+            >
               Cancel
-            </Button>
-            <Button variant="outline" className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-              Save as Draft
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={submitLoading}
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700"
+              className={`flex-1 bg-gradient-to-r ${
+                isEditMode 
+                  ? 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
+                  : 'from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700'
+              }`}
             >
-              {submitLoading ? 'Saving...' : 'Add Payment'}
+              {submitLoading ? 'Saving...' : isEditMode ? 'Update Payment' : 'Add Payment'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Transaction Modal */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="border-0 shadow-2xl max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
+              <Receipt className="w-6 h-6 text-emerald-600" />
+              Transaction Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedTxn && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl">
+                <div>
+                  <Label className="text-xs text-slate-500 uppercase tracking-wider">Transaction ID</Label>
+                  <p className="font-mono font-bold text-slate-900">{selectedTxn.transaction_id}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500 uppercase tracking-wider">Date</Label>
+                  <p className="font-bold text-slate-900">{selectedTxn.date}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500 uppercase tracking-wider">Type</Label>
+                  <Badge className={getTypeColor(selectedTxn.type)}>{selectedTxn.type}</Badge>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500 uppercase tracking-wider">Status</Label>
+                  <Badge className={getStatusColor(selectedTxn.status)}>{selectedTxn.status}</Badge>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-end border-b pb-4">
+                  <div>
+                    <Label className="text-xs text-slate-500 uppercase">Related Entity</Label>
+                    <p className="text-xl font-bold text-slate-900">{selectedTxn.relatedEntity}</p>
+                    <p className="text-sm text-slate-500">{selectedTxn.category}</p>
+                  </div>
+                  <div className="text-right">
+                    <Label className="text-xs text-slate-500 uppercase">Amount</Label>
+                    <p className={`text-3xl font-black ${selectedTxn.type === 'customer' ? 'text-green-600' : 'text-red-600'}`}>
+                      LKR {selectedTxn.amount.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-slate-500 uppercase">Payment Method</Label>
+                    <div className="flex items-center gap-2 font-bold text-slate-900">
+                      {selectedTxn.paymentMethod === 'bank' ? <Building2 className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+                      <span className="capitalize">{selectedTxn.paymentMethod}</span>
+                    </div>
+                  </div>
+                  {selectedTxn.bankAccountName && (
+                    <div>
+                      <Label className="text-xs text-slate-500 uppercase">Bank Account</Label>
+                      <p className="font-bold text-slate-900">{selectedTxn.bankAccountName}</p>
+                    </div>
+                  )}
+                </div>
+
+                {selectedTxn.notes && (
+                  <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                    <Label className="text-xs text-amber-700 uppercase mb-1 block">Notes</Label>
+                    <p className="text-slate-700 italic">{selectedTxn.notes}</p>
+                  </div>
+                )}
+
+                {selectedTxn.receiptUrl && (
+                  <div>
+                    <Label className="text-xs text-slate-500 uppercase mb-2 block">Receipt / Proof</Label>
+                    <Button variant="outline" className="w-full h-12 gap-2" onClick={() => window.open(selectedTxn.receiptUrl, '_blank')}>
+                      <FileText className="w-4 h-4" />
+                      View Uploaded Document
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 mt-4">
+            <Button variant="outline" onClick={() => setIsViewOpen(false)} className="flex-1">
+              Close
+            </Button>
+            <Button 
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+              onClick={() => {
+                setIsViewOpen(false);
+                handleEdit(selectedTxn!);
+              }}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Transaction
             </Button>
           </div>
         </DialogContent>
