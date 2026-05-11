@@ -18,7 +18,7 @@ import {
   XCircle,
   Loader2,
   RefreshCw,
-  DollarSign,
+  Banknote,
   FileText,
 } from 'lucide-react';
 
@@ -45,10 +45,16 @@ export function SupplierPaymentsAdmin() {
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState<SupplierPayment | null>(null);
 
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const fetchPayments = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('http://localhost:5900/api/supplier-payments');
+      const headers = getAuthHeader();
+      const res = await axios.get('http://localhost:5900/api/supplier-payments', { headers });
       setPayments(res.data.payments || []);
     } catch (err) {
       console.error('Error fetching supplier payments:', err);
@@ -234,7 +240,7 @@ export function SupplierPaymentsAdmin() {
         <DialogContent className="border-0 shadow-2xl max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl font-black">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
+              <Banknote className="w-5 h-5 text-emerald-600" />
               Supplier Payment Details
             </DialogTitle>
           </DialogHeader>

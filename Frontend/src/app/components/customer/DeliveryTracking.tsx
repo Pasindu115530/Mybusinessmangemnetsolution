@@ -66,7 +66,9 @@ export function DeliveryTracking() {
 
   const userDataString = localStorage.getItem('user');
   const userData = userDataString ? JSON.parse(userDataString) : null;
-  const customerId = userData?.id || userData?._id || localStorage.getItem('customID') || localStorage.getItem('customerId');
+  // Prioritize customID, then id/_id
+  const customerId = localStorage.getItem('customID') || userData?.customID || userData?.id || userData?._id;
+  const userEmail = userData?.email || localStorage.getItem('userEmail');
 
   const fetchOrders = async () => {
     console.log("Fetching orders for customerId:", customerId);
@@ -77,7 +79,12 @@ export function DeliveryTracking() {
     }
     try {
       setLoading(true);
-      const response = await axios.get(`http://localhost:5900/api/orders/customer/${customerId}`);
+      const fetchId = customerId || userEmail;
+      if (!fetchId) {
+        setLoading(false);
+        return;
+      }
+      const response = await axios.get(`http://localhost:5900/api/orders/customer/${fetchId}`);
       // The API seems to return mapped orders, but let's see. 
       // Based on orderController.js, it returns: _id, orderID, quotationRef, orderDate, totalAmount, totalItems, status, customerID
       // Wait, that one doesn't return items. I might need a "get order by id" or update the customer route.
@@ -147,19 +154,23 @@ export function DeliveryTracking() {
     }
   };
 
-  const getTimeline = (status: string | undefined): TimelineStep[] => {
+  const getTimeline = (status: string | undefined, statusDates?: any): TimelineStep[] => {
     if (!status) return [];
     const s = status.toLowerCase();
+    
     return [
       { name: 'Order Placed', status: 'completed', date: selectedOrder?.orderDate ? new Date(selectedOrder.orderDate).toLocaleDateString() : '' },
       { name: 'Processing', status: (s === 'pending' || s === 'processing') ? 'current' : 'completed' },
-      { name: 'Dispatched', status: s === 'dispatched' ? 'current' : (s === 'in-transit' || s === 'delivered' || s === 'completed' ? 'completed' : 'pending') },
-      { name: 'In Transit', status: s === 'in-transit' ? 'current' : (s === 'delivered' || s === 'completed' ? 'completed' : 'pending') },
-      { name: 'Delivered', status: (s === 'delivered' || s === 'completed') ? 'completed' : 'pending' },
+      { name: 'Dispatched', status: (s === 'dispatched' || s === 'partially-issued') ? 'current' : (s === 'in-transit' || s === 'delivered' || s === 'completed' ? 'completed' : 'pending'), 
+        date: statusDates?.dispatchedDate ? new Date(statusDates.dispatchedDate).toLocaleDateString() : undefined },
+      { name: 'In Transit', status: s === 'in-transit' ? 'current' : (s === 'delivered' || s === 'completed' ? 'completed' : 'pending'),
+        date: statusDates?.inTransitDate ? new Date(statusDates.inTransitDate).toLocaleDateString() : undefined },
+      { name: 'Delivered', status: (s === 'delivered' || s === 'completed') ? 'completed' : 'pending',
+        date: statusDates?.deliveredDate ? new Date(statusDates.deliveredDate).toLocaleDateString() : undefined },
     ];
   };
 
-  const timeline = selectedOrder ? getTimeline(selectedOrder.status) : [];
+  const timeline = selectedOrder ? getTimeline(selectedOrder.status, (selectedOrder as any).statusDates) : [];
 
   if (loading && orders.length === 0) {
     return (
@@ -279,7 +290,9 @@ export function DeliveryTracking() {
                   </CardTitle>
                   <p className="text-sm text-slate-600 mt-1">Track your order progress from placement to delivery</p>
                 </div>
-                {(selectedOrder.status.toLowerCase() === 'dispatched' || selectedOrder.status.toLowerCase() === 'in-transit') && (
+                {(selectedOrder.status.toLowerCase() === 'dispatched' || 
+                  selectedOrder.status.toLowerCase() === 'in-transit' ||
+                  selectedOrder.status.toLowerCase() === 'partially-issued') && (
                   <Button 
                     onClick={handleOpenConfirmModal}
                     className="bg-green-600 hover:bg-green-700 text-white"

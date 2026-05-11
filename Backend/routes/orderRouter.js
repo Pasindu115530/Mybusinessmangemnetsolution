@@ -12,7 +12,8 @@ import {
     confirmOrderDelivery,
     restockRejectedItems,
     getAllPurchaseOrders,
-    updatePurchaseOrderStatus
+    updatePurchaseOrderStatus,
+    createOrder
 } from "../controllers/orderController.js";
 
 const orderRouter = express.Router();
@@ -21,6 +22,7 @@ const orderRouter = express.Router();
 // Frontend eke axios.get(`.../api/orders/customer/${customID}`) widiyata call karanna
 orderRouter.get("/customer/:customerId", getOrdersByCustomerId);
 orderRouter.get("/", getAllOrders); 
+orderRouter.post("/", createOrder);
 
 // New routes for updating order
 orderRouter.put("/:id/status", updateOrderStatus);

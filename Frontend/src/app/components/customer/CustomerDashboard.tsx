@@ -8,7 +8,7 @@ import {
   Package,
   Clock,
   CheckCircle,
-  DollarSign,
+  Banknote,
   Send,
   FileText,
   CreditCard,
@@ -23,7 +23,7 @@ const stats = [
   { label: 'Active Orders', value: '5', icon: ShoppingBag, color: 'blue', trend: '+2' },
   { label: 'Pending Quotations', value: '3', icon: FileText, color: 'yellow', trend: '+1' },
   { label: 'Delivered', value: '12', icon: CheckCircle, color: 'green', trend: '+3' },
-  { label: 'Pending Payment', value: '2', icon: DollarSign, color: 'red', trend: '0' },
+  { label: 'Pending Payment', value: '2', icon: Banknote, color: 'red', trend: '0' },
 ];
 
 const recentOrders = [
@@ -40,7 +40,7 @@ const pendingQuotations = [
 const recentActivity = [
   { type: 'delivery', message: 'Order ORD-20240115 delivered successfully', time: '2 hours ago', icon: CheckCircle, color: 'green' },
   { type: 'quotation', message: 'New quotation received for REQ-20240110', time: '5 hours ago', icon: FileText, color: 'blue' },
-  { type: 'payment', message: 'Payment confirmed for INV-20240113', time: '1 day ago', icon: DollarSign, color: 'green' },
+  { type: 'payment', message: 'Payment confirmed for INV-20240113', time: '1 day ago', icon: Banknote, color: 'green' },
   { type: 'order', message: 'Order ORD-20240114 dispatched', time: '2 days ago', icon: Truck, color: 'purple' },
 ];
 
@@ -173,7 +173,7 @@ export function CustomerDashboard() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">{order.items} items</span>
-                      <span className="text-slate-900">${order.amount.toLocaleString()}</span>
+                      <span className="text-slate-900">LKR {order.amount.toLocaleString()}</span>
                     </div>
                     <div className="text-xs text-slate-500 mt-2">{order.date}</div>
                   </div>
@@ -208,7 +208,7 @@ export function CustomerDashboard() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">Req: {quotation.reqRef}</span>
-                      <span className="text-slate-900">${quotation.amount.toLocaleString()}</span>
+                      <span className="text-slate-900">LKR {quotation.amount.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
                       <span>Expires: {quotation.expiryDate}</span>

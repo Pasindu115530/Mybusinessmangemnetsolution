@@ -1,13 +1,19 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import StockItem from "../models/Stock.js";
+import Quotation from "../models/Quotation.js";
 
 // 1. GET: Customer kenekta adala orders tika pamanak ganna (Table eka sandaha)
 export const getOrdersByCustomerId = async (req, res) => {
     try {
         const { customerId } = req.params;
-        // customerId eka anuwa filter kara aluthma order eka udaata ena se sort kirima
-        const orders = await Order.find({ customerId: customerId }).sort({ date: -1 });
+        // Search by customerId OR email (some orders might have only email or business ID)
+        const orders = await Order.find({
+            $or: [
+                { customerId: customerId },
+                { email: customerId } 
+            ]
+        }).sort({ date: -1 });
 
         // Frontend eke interface ekata galapena widiyata map kirima
         const mappedOrders = orders.map(o => ({
@@ -21,7 +27,8 @@ export const getOrdersByCustomerId = async (req, res) => {
             status: o.status.toLowerCase(),
             customerID: o.customerId,
             items: o.items, // Include items for tracking
-            invoiced: o.invoiced || false
+            invoiced: o.invoiced || false,
+            statusDates: o.statusDates
         }));
 
         res.status(200).json(mappedOrders);
@@ -159,7 +166,8 @@ export const issueOrderItems = async (req, res) => {
         // Check if all items are fully issued
         const allIssued = order.items.every(item => (item.issuedQuantity || 0) >= item.quantity);
         if (allIssued) {
-            order.status = "dispatched"; // Or "issued"
+            order.status = "dispatched"; 
+            order.statusDates.dispatchedDate = new Date();
         } else {
             order.status = "partially-issued";
         }
@@ -191,6 +199,7 @@ export const confirmOrderDelivery = async (req, res) => {
         });
 
         order.status = "delivered";
+        order.statusDates.deliveredDate = new Date();
         await order.save();
         res.status(200).json(order);
     } catch (error) {
@@ -244,6 +253,81 @@ export const restockRejectedItems = async (req, res) => {
         res.status(200).json({ message: "Item restocked successfully", order });
     } catch (error) {
         res.status(500).json({ message: "Error restocking item", error: error.message });
+    }
+};
+
+// Create a new order (called by Customer when accepting a quotation)
+export const createOrder = async (req, res) => {
+    try {
+        const { 
+            name, 
+            customerId, 
+            address, 
+            phonenumber, 
+            notes, 
+            items, 
+            quotationId,
+            email 
+        } = req.body;
+
+        console.log("Creating Order with payload:", { name, customerId, quotationId });
+
+        if (!items || items.length === 0) {
+            return res.status(400).json({ message: "Items are required to create an order" });
+        }
+
+        // Calculate total
+        const total = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+
+        // Fetch Quotation to get the source email if not provided
+        let customerEmail = email || req.user?.email;
+        
+        if (!customerEmail && quotationId) {
+            const quotation = await Quotation.findById(quotationId);
+            if (quotation) {
+                customerEmail = quotation.email;
+            }
+        }
+
+        if (!customerEmail) {
+            return res.status(400).json({ message: "Customer email is required" });
+        }
+        
+        // Generate unique Order ID
+        const orderCount = await Order.countDocuments();
+        const orderID = `ORD-${Date.now()}-${String(orderCount + 1).padStart(3, '0')}`;
+
+        const newOrder = new Order({
+            orderID,
+            customerId: customerId || req.user?.id,
+            email: customerEmail,
+            name,
+            address,
+            phonenumber: Number(phonenumber), // Ensure it's a number
+            notes: notes || "",
+            items: items.map(item => ({
+                ...item,
+                price: Number(item.price),
+                quantity: Number(item.quantity)
+            })),
+            total,
+            totalCost: total,
+            status: "Pending",
+            orderType: "customer",
+            quotationRef: quotationId,
+            date: new Date()
+        });
+
+        await newOrder.save();
+        console.log("Order created successfully:", newOrder.orderID);
+        res.status(201).json({ success: true, message: "Order created successfully", order: newOrder });
+    } catch (error) {
+        console.error("Create Order Internal Error:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Failed to create order", 
+            error: error.message 
+        });
     }
 };
 

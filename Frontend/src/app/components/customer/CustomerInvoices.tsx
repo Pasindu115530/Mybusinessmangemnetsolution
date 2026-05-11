@@ -12,7 +12,7 @@ import {
   Download,
   Eye,
   FileText,
-  DollarSign,
+  Banknote,
   Calendar,
   Hash,
   Printer,
@@ -203,7 +203,7 @@ export function CustomerInvoices() {
             <CardContent className="pt-6 relative">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-amber-100 rounded-xl flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-yellow-600" />
+                  <Banknote className="w-6 h-6 text-yellow-600" />
                 </div>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Unpaid Invoices</h3>
@@ -331,9 +331,9 @@ export function CustomerInvoices() {
                               <Button 
                                 size="sm" 
                                 className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                                onClick={() => navigate(`/customer/payment?invoiceId=${invoice.invoiceID}`)}
+                                onClick={() => navigate(`/customer/payments?invoiceId=${invoice.invoiceID}`)}
                               >
-                                <DollarSign className="w-4 h-4 mr-1" />
+                                <Banknote className="w-4 h-4 mr-1" />
                                 Pay Now
                               </Button>
                             )}

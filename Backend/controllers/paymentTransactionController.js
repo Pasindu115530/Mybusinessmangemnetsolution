@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import PaymentTransaction from "../models/PaymentTransaction.js";
 import BankAccount from "../models/BankAccount.js";
 import Invoice from "../models/Invoice.js";
+import Finance from "../models/finance.js";
 
 const parseDecimal = (value) => {
   if (value == null) return 0;
@@ -217,11 +218,32 @@ export const addPayment = async (req, res) => {
       status: status || "completed",
       notes: notes || "",
       receiptUrl: receiptUrl || "",
+      isFinanceLinked: true
     });
+
+    // Create Finance Entry for unified tracking
+    if (status === "completed" || !status) {
+      let transaction_type;
+      if (type === 'customer') {
+        transaction_type = paymentMethod === 'cash' ? 'cash_in' : 'bank_deposit';
+      } else {
+        transaction_type = paymentMethod === 'cash' ? 'cash_out' : 'bank_withdraw';
+      }
+
+      await Finance.create({
+        transaction_type,
+        amount: numericAmount,
+        description: `${category}: ${relatedEntity}`,
+        date: date || new Date(),
+        notes: notes || "",
+        bankAccountId: paymentMethod === "bank" ? bankAccountId : null,
+        bankAccountName: paymentMethod === "bank" ? bankAccountName || "" : ""
+      });
+    }
 
     res.status(201).json({
       success: true,
-      message: "Payment added successfully",
+      message: "Payment added and recorded in finance",
       payment,
     });
   } catch (error) {

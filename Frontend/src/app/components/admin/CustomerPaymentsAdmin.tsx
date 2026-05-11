@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { CreditCard, Loader2, Calendar, DollarSign, Search, Eye, CheckCircle, X, FileText, AlertCircle } from 'lucide-react';
+import { CreditCard, Loader2, Calendar, Banknote, Search, Eye, CheckCircle, X, FileText, AlertCircle } from 'lucide-react';
 import { Input } from '../ui/input';
 import { toast } from 'sonner';
 
@@ -134,7 +134,7 @@ export function CustomerPaymentsAdmin() {
         <Card className="modern-card border-0 shadow-modern-lg">
           <CardHeader className="bg-slate-50/50 rounded-t-xl py-6">
             <CardTitle className="flex items-center gap-2 text-slate-700">
-              <DollarSign className="w-5 h-5 text-green-600" />
+              <Banknote className="w-5 h-5 text-green-600" />
               Transaction Log
             </CardTitle>
           </CardHeader>

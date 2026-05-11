@@ -22,7 +22,7 @@ import {
   User,
   Building,
   FileText,
-  DollarSign
+  Banknote
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -322,7 +322,7 @@ export function CustomerQuotations() {
                       <TableHead>Quotation ID</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Items</TableHead>
-                      <TableHead>Total (Rs)</TableHead>
+                      <TableHead>Total (LKR)</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
@@ -340,7 +340,7 @@ export function CustomerQuotations() {
                           {q.items?.length ?? 0} item{q.items?.length !== 1 ? 's' : ''}
                         </TableCell>
                         <TableCell className="text-slate-900 font-semibold">
-                          Rs. {(q.total || q.total_estimate || 0).toFixed(2)}
+                          LKR {(q.total || q.total_estimate || 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-slate-600 whitespace-nowrap">
                           {formatDate(q.date || q.createdAt || '')}
@@ -443,11 +443,11 @@ export function CustomerQuotations() {
                           </div>
                           <div className="flex-1 text-right">
                             <p className="text-xs text-slate-500">Unit Price</p>
-                            <p className="text-sm font-medium text-slate-700">Rs. {price.toFixed(2)}</p>
+                            <p className="text-sm font-medium text-slate-700">LKR {price.toFixed(2)}</p>
                           </div>
                           <div className="flex-1 text-right">
                             <p className="text-xs text-slate-500">Total</p>
-                            <p className="text-sm font-black text-blue-700">Rs. {total.toFixed(2)}</p>
+                            <p className="text-sm font-black text-blue-700">LKR {total.toFixed(2)}</p>
                           </div>
                         </div>
                       </div>
@@ -461,17 +461,17 @@ export function CustomerQuotations() {
                 <div className="w-full sm:w-64 space-y-2">
                   <div className="flex justify-between text-sm text-slate-600">
                     <span>Subtotal</span>
-                    <span>Rs. {(selectedQuotation.subtotal || selectedQuotation.total || selectedQuotation.total_estimate || 0).toFixed(2)}</span>
+                    <span>LKR {(selectedQuotation.subtotal || selectedQuotation.total || selectedQuotation.total_estimate || 0).toFixed(2)}</span>
                   </div>
                   {selectedQuotation.tax_amount !== undefined && selectedQuotation.tax_amount > 0 && (
                     <div className="flex justify-between text-sm text-slate-600">
                       <span>Tax</span>
-                      <span>Rs. {selectedQuotation.tax_amount.toFixed(2)}</span>
+                      <span>LKR {selectedQuotation.tax_amount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span className="text-blue-700">Rs. {(selectedQuotation.total || selectedQuotation.total_estimate || 0).toFixed(2)}</span>
+                    <span className="text-blue-700">LKR {(selectedQuotation.total || selectedQuotation.total_estimate || 0).toFixed(2)}</span>
                   </div>
                 </div>
               </div>

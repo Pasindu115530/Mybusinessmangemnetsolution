@@ -19,6 +19,7 @@ import supplierQuotationRouter from "./routes/supplierQuotationRouter.js"
 import supplierOrderRouter from "./routes/supplierOrderRouter.js"
 import supplierInvoiceRouter from "./routes/supplierInvoiceRouter.js"
 import supplierPaymentTransactionRouter from "./routes/supplierPaymentTransactionRouter.js"
+import dashboardRouter from "./routes/dashboardRouter.js"
 
 
 
@@ -70,6 +71,7 @@ app.use("/api/suppliers/quotations", supplierQuotationRouter)
 app.use("/api/supplier-orders", supplierOrderRouter)
 app.use("/api/supplier-invoices", supplierInvoiceRouter)
 app.use("/api/supplier-payments", supplierPaymentTransactionRouter)
+app.use("/api/dashboard", dashboardRouter)
 
 // // Centralized error handler
 // app.use(errorHandler)

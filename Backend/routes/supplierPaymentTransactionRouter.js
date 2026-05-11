@@ -6,15 +6,16 @@ import {
     getSupplierPaymentsByEmail,
     getSupplierPaymentStats
 } from '../controllers/supplierpaymentTransactionController.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const supplierPaymentTransactionRouter = express.Router();
 
 // Base path: /api/supplier-payments
 
-supplierPaymentTransactionRouter.get('/', getSupplierPayments);
-supplierPaymentTransactionRouter.get('/all', getSupplierPaymentsByEmail); // Frontend expects /all
-supplierPaymentTransactionRouter.get('/stats', getSupplierPaymentStats); // Frontend expects /stats
-supplierPaymentTransactionRouter.post('/', addSupplierPayment);
-supplierPaymentTransactionRouter.delete('/:id', deleteSupplierPayment);
+supplierPaymentTransactionRouter.get('/', requireAuth, getSupplierPayments);
+supplierPaymentTransactionRouter.get('/all', requireAuth, getSupplierPaymentsByEmail); // Frontend expects /all
+supplierPaymentTransactionRouter.get('/stats', requireAuth, getSupplierPaymentStats); // Frontend expects /stats
+supplierPaymentTransactionRouter.post('/', requireAuth, addSupplierPayment);
+supplierPaymentTransactionRouter.delete('/:id', requireAuth, deleteSupplierPayment);
 
 export default supplierPaymentTransactionRouter;

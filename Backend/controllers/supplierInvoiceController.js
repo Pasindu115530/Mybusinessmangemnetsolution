@@ -1,4 +1,9 @@
 import SupplierInvoice from '../models/supplierInvoice.js';
+import SupplierOrder from '../models/supplierOrder.js';
+import SupplierPaymentTransaction from '../models/supplierPaymentTransaction.js';
+import PaymentTransaction from '../models/PaymentTransaction.js';
+import Finance from '../models/finance.js';
+import StockItem from '../models/Stock.js';
 
 // ==========================================
 // 1. GET all supplier invoices (Admin)
@@ -63,12 +68,70 @@ export const getOverdueInvoiceCount = async (req, res) => {
 // ==========================================
 export const acceptSupplierPayment = async (req, res) => {
     try {
+        const { paymentMethod, bankAccountId, bankAccountName, notes } = req.body;
         const invoice = await SupplierInvoice.findById(req.params.id);
         if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+        
         invoice.status = 'paid';
         invoice.payment_status = 'paid';
+        if (paymentMethod) invoice.paymentMethod = paymentMethod;
+        if (bankAccountId) invoice.bankAccountId = bankAccountId;
+        if (notes) invoice.notes = notes;
+        
         await invoice.save();
-        res.status(200).json({ success: true, message: 'Payment accepted', invoice });
+
+        const txnId = invoice.transactionID || `STXN-${Date.now()}`;
+
+        // 1. Create Supplier-specific transaction record
+        await SupplierPaymentTransaction.create({
+            transaction_id: txnId,
+            type: 'supplier',
+            category: 'Invoice Payment',
+            relatedEntity: invoice.supplierEmail,
+            supplierId: invoice.supplierId,
+            supplierEmail: invoice.supplierEmail,
+            purchaseOrderRef: invoice.purchaseOrderRef || '',
+            billRef: invoice.bill_id,
+            amount: invoice.total,
+            paymentMethod: paymentMethod || invoice.paymentMethod || 'bank',
+            bankAccountId: bankAccountId || null,
+            bankAccountName: bankAccountName || '',
+            date: new Date(),
+            status: 'completed',
+            notes: notes || invoice.notes,
+            receiptUrl: invoice.paymentProof
+        });
+
+        // 2. Create Global Payment Transaction (for Payments & Transactions page)
+        await PaymentTransaction.create({
+            transaction_id: txnId,
+            type: 'supplier',
+            category: 'Supplier Bill Payment',
+            relatedEntity: invoice.supplierEmail,
+            amount: invoice.total,
+            paymentMethod: paymentMethod || invoice.paymentMethod || 'bank',
+            bankAccountId: bankAccountId || null,
+            bankAccountName: bankAccountName || '',
+            date: new Date(),
+            status: 'completed',
+            notes: notes || invoice.notes,
+            purchaseOrderRef: invoice.purchaseOrderRef || '',
+            billRef: invoice.bill_id,
+            isFinanceLinked: true
+        });
+
+        // 3. Create Finance Entry (for Finance Management main page)
+        await Finance.create({
+            transaction_type: paymentMethod === 'cash' ? 'cash_out' : 'bank_withdraw',
+            amount: invoice.total,
+            description: `Payment for Supplier Bill: ${invoice.bill_id || invoice.invoiceID}`,
+            date: new Date(),
+            notes: `Supplier: ${invoice.supplierEmail}. Ref: ${invoice.purchaseOrderRef}`,
+            bankAccountId: bankAccountId || null,
+            bankAccountName: bankAccountName || ''
+        });
+
+        res.status(200).json({ success: true, message: 'Payment accepted and finance records updated', invoice });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -145,6 +208,13 @@ export const createSupplierInvoiceBySupplier = async (req, res) => {
         });
 
         await invoice.save();
+
+        // Mark the Purchase Order as invoiced so it doesn't show up again
+        await SupplierOrder.findOneAndUpdate(
+            { po_id: purchaseOrderRef },
+            { invoiced: true }
+        );
+
         res.status(201).json({ success: true, invoice });
     } catch (error) {
         res.status(500).json({ message: error.message });

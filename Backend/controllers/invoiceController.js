@@ -1,5 +1,7 @@
 import Invoice from "../models/Invoice.js";
 import Order from "../models/Order.js";
+import PaymentTransaction from "../models/PaymentTransaction.js";
+import Finance from "../models/finance.js";
 
 export const getPaidInvoiceCountByCustomer = async (req, res) => {
     try {
@@ -95,14 +97,49 @@ export const createPaymentForInvoice = async (req, res) => {
 export const acceptPayment = async (req, res) => {
     try {
         const { id } = req.params;
+        const { paymentMethod, bankAccountId, bankAccountName, notes } = req.body;
         const invoice = await Invoice.findById(id);
         if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
         invoice.status = "paid";
         invoice.payment_status = "paid";
+        if (paymentMethod) invoice.paymentMethod = paymentMethod;
+        if (bankAccountId) invoice.bankAccountId = bankAccountId;
+        if (notes) invoice.notes = notes;
+
         await invoice.save();
 
-        res.json({ message: "Payment accepted successfully", invoice });
+        const txnId = invoice.transactionID || `TXN-${Date.now()}`;
+
+        // 1. Create Payment Transaction (for Payments & Transactions page)
+        await PaymentTransaction.create({
+            transaction_id: txnId,
+            type: 'customer',
+            category: 'Invoice Payment',
+            relatedEntity: invoice.email,
+            amount: invoice.total,
+            paymentMethod: paymentMethod || invoice.paymentMethod || 'bank',
+            bankAccountId: bankAccountId || null,
+            bankAccountName: bankAccountName || '',
+            date: new Date(),
+            status: 'completed',
+            notes: notes || invoice.notes,
+            receiptUrl: invoice.paymentProof,
+            isFinanceLinked: true
+        });
+
+        // 2. Create Finance Entry (for Finance Management main page)
+        await Finance.create({
+            transaction_type: (paymentMethod || invoice.paymentMethod) === 'cash' ? 'cash_in' : 'bank_deposit',
+            amount: invoice.total,
+            description: `Income from Invoice: ${invoice.invoiceID}`,
+            date: new Date(),
+            notes: `Customer: ${invoice.email}. Order: ${invoice.orderID}`,
+            bankAccountId: bankAccountId || null,
+            bankAccountName: bankAccountName || ''
+        });
+
+        res.json({ message: "Payment accepted successfully and recorded in finance", invoice });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

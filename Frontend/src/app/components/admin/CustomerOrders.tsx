@@ -727,8 +727,8 @@ export function CustomerOrders() {
                   <tr key={item.id} className="border-b border-slate-200">
                     <td className="py-3 text-sm text-slate-900">{item.name}</td>
                     <td className="py-3 text-sm text-slate-900 text-right">{item.orderedQty}</td>
-                    <td className="py-3 text-sm text-slate-900 text-right">${item.unitPrice}</td>
-                    <td className="py-3 text-sm text-slate-900 text-right">${(item.orderedQty * item.unitPrice).toLocaleString()}</td>
+                    <td className="py-3 text-sm text-slate-900 text-right">LKR {item.unitPrice}</td>
+                    <td className="py-3 text-sm text-slate-900 text-right">LKR {(item.orderedQty * item.unitPrice).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -739,19 +739,19 @@ export function CustomerOrders() {
               <div className="w-64 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Subtotal:</span>
-                  <span className="text-slate-900">$134,000.00</span>
+                  <span className="text-slate-900">LKR 134,000.00</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Tax (10%):</span>
-                  <span className="text-slate-900">$13,400.00</span>
+                  <span className="text-slate-900">LKR 13,400.00</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Discount:</span>
-                  <span className="text-green-600">-$5,400.00</span>
+                  <span className="text-green-600">-LKR 5,400.00</span>
                 </div>
                 <div className="border-t-2 border-slate-300 pt-2 flex justify-between">
                   <span className="text-slate-900">TOTAL:</span>
-                  <span className="text-slate-900 text-xl">$142,000.00</span>
+                  <span className="text-slate-900 text-xl">LKR 142,000.00</span>
                 </div>
               </div>
             </div>

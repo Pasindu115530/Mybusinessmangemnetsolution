@@ -313,8 +313,8 @@ const handleSubmit = async (action: 'send' | 'draft') => {
                         <TableHead className="text-center text-[10px] font-black uppercase text-slate-400">Unit</TableHead>
                         <TableHead className="text-center text-[10px] font-black uppercase text-slate-400">Delivery Date</TableHead>
                         <TableHead className="text-[10px] font-black uppercase text-slate-400">Notes</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase text-violet-600">Unit Price (Rs.) *</TableHead>
-                        <TableHead className="text-right pr-8 text-[10px] font-black uppercase text-slate-400">Total (Rs.)</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase text-violet-600">Unit Price (LKR) *</TableHead>
+                        <TableHead className="text-right pr-8 text-[10px] font-black uppercase text-slate-400">Total (LKR)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -352,7 +352,7 @@ const handleSubmit = async (action: 'send' | 'draft') => {
                           {/* Unit Price — EDITABLE */}
                           <TableCell>
                             <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">Rs.</span>
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">LKR</span>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -368,7 +368,7 @@ const handleSubmit = async (action: 'send' | 'draft') => {
                           {/* Total — calculated */}
                           <TableCell className="text-right pr-8">
                             <span className="font-black text-slate-900">
-                              {item.total > 0 ? `Rs. ${item.total.toFixed(2)}` : '—'}
+                              {item.total > 0 ? `LKR ${item.total.toFixed(2)}` : '—'}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -382,16 +382,16 @@ const handleSubmit = async (action: 'send' | 'draft') => {
                   <div className="w-full md:w-80 space-y-3 rounded-2xl bg-slate-50 border border-slate-100 p-6">
                     <div className="flex justify-between text-sm text-slate-600">
                       <span>Subtotal</span>
-                      <span className="font-bold text-slate-900">Rs. {subtotal.toFixed(2)}</span>
+                      <span className="font-bold text-slate-900">LKR {subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-slate-600">
                       <span>Tax (VAT 10%)</span>
-                      <span className="font-bold text-slate-900">Rs. {tax.toFixed(2)}</span>
+                      <span className="font-bold text-slate-900">LKR {tax.toFixed(2)}</span>
                     </div>
                     <div className="h-px bg-slate-200" />
                     <div className="flex justify-between text-base">
                       <span className="font-black text-slate-900">Total</span>
-                      <span className="font-black text-violet-600 text-lg">Rs. {total.toFixed(2)}</span>
+                      <span className="font-black text-violet-600 text-lg">LKR {total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

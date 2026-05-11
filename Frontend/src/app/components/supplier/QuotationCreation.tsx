@@ -18,7 +18,7 @@ import {
   X,
   CheckCircle,
   FileText,
-  DollarSign,
+  Banknote,
   Calendar,
   Package,
   Loader2,
@@ -261,7 +261,7 @@ export function QuotationCreation() {
                         </TableCell>
                         <TableCell className="py-4">
                           <div className="relative">
-                            <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">LKR</span>
                             <Input 
                               type="number"
                               value={item.unitPrice}

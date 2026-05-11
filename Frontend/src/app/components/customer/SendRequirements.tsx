@@ -11,8 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { 
   Plus, Trash2, Upload, Send, CheckCircle, X, FileText, 
   Package, Loader2, Clock, Eye, ShieldCheck, 
-  ArrowUpRight, Layers, Hourglass
+  ArrowUpRight, Layers, Hourglass, Search, Check, ChevronsUpDown
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../ui/command";
+import { cn } from "../ui/utils";
 
 interface RequirementItem {
   id: number;
@@ -23,10 +26,7 @@ interface RequirementItem {
   deliveryDate: string;
 }
 
-const stockItems = [
-  'Product A - Electronics', 'Product B - Furniture', 'Product C - Textiles', 
-  'Product D - Hardware', 'Product E - Office Supplies',
-];
+// Remove hardcoded stockItems
 
 export function SendRequirements() {
   const [items, setItems] = useState<RequirementItem[]>([
@@ -39,6 +39,8 @@ export function SendRequirements() {
   const [sentRequirements, setSentRequirements] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, received: 0, pending: 0, rejected: 0 });
+  const [availableStocks, setAvailableStocks] = useState<any[]>([]);
+  const [stocksLoading, setStocksLoading] = useState(true);
 
   const getCustomerId = () => {
     const userStr = localStorage.getItem('user');
@@ -73,7 +75,24 @@ export function SendRequirements() {
     } catch (error) { console.error(error); } finally { setHistoryLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const fetchStocks = async () => {
+    try {
+      setStocksLoading(true);
+      const res = await axios.get('http://localhost:5900/api/stocks/getItems');
+      const data = res.data;
+      const itemsArray = Array.isArray(data) ? data : (data.data || data.items || []);
+      setAvailableStocks(itemsArray);
+    } catch (error) {
+      console.error("Error fetching stocks:", error);
+    } finally {
+      setStocksLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    fetchData(); 
+    fetchStocks();
+  }, []);
 
   const addItem = () => setItems([...items, { id: Date.now(), itemName: '', quantity: '', unit: 'units', notes: '', deliveryDate: '' }]);
   const removeItem = (id: number) => items.length > 1 && setItems(items.filter(item => item.id !== id));
@@ -209,14 +228,49 @@ export function SendRequirements() {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="md:col-span-1">
                       <Label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Product Selection</Label>
-                      <Select value={item.itemName} onValueChange={(v) => updateItem(item.id, 'itemName', v)}>
-                        <SelectTrigger className="rounded-xl border-slate-100 bg-slate-50/50">
-                          <SelectValue placeholder="Select Product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {stockItems.map(si => <SelectItem key={si} value={si}>{si}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between rounded-xl border-slate-100 bg-slate-50/50 font-normal",
+                              !item.itemName && "text-muted-foreground"
+                            )}
+                          >
+                            {item.itemName || "Select Product"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search product..." />
+                            <CommandList>
+                              <CommandEmpty>No product found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableStocks.map((stock) => (
+                                  <CommandItem
+                                    key={stock._id}
+                                    value={stock.item_name}
+                                    onSelect={(currentValue) => {
+                                      updateItem(item.id, 'itemName', currentValue);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        item.itemName === stock.item_name ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {stock.item_name}
+                                    <span className="ml-2 text-[10px] text-slate-400">({stock.category})</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div>
                       <Label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Total Quantity</Label>

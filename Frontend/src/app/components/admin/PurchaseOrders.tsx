@@ -268,8 +268,8 @@ export function PurchaseOrders() {
                             <TableRow key={idx} className="border-b last:border-0">
                               <TableCell className="pl-6 py-4 font-bold text-slate-700">{item.name}</TableCell>
                               <TableCell className="py-4 text-center font-black text-slate-400">{item.quantity} {item.unit}</TableCell>
-                              <TableCell className="py-4 text-right text-slate-600 font-mono text-xs">${item.price?.toLocaleString()}</TableCell>
-                              <TableCell className="py-4 text-right pr-6 font-black text-slate-900">${(item.quantity * item.price).toLocaleString()}</TableCell>
+                              <TableCell className="py-4 text-right text-slate-600 font-mono text-xs">LKR {item.price?.toLocaleString()}</TableCell>
+                              <TableCell className="py-4 text-right pr-6 font-black text-slate-900">LKR {(item.quantity * item.price).toLocaleString()}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -329,7 +329,7 @@ export function PurchaseOrders() {
                       </div>
                       <div className="pt-4 border-t border-white/10">
                         <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Grand Total</p>
-                        <p className="text-4xl font-black text-white">${selectedPO.totalAmount.toLocaleString()}</p>
+                        <p className="text-4xl font-black text-white">LKR {selectedPO.totalAmount.toLocaleString()}</p>
                       </div>
                     </CardContent>
                   </Card>

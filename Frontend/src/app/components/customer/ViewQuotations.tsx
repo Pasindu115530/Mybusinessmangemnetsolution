@@ -14,7 +14,7 @@ import {
   CheckCircle,
   XCircle,
   Calendar,
-  DollarSign,
+  Banknote,
   Package,
   AlertCircle,
   Clock,
@@ -347,7 +347,7 @@ export function ViewQuotations() {
                       <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(quotation.date || quotation.createdAt || '')}</TableCell>
                       <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(quotation.validUntil || '')}</TableCell>
                       <TableCell className="text-slate-900">{quotation.items?.length || 0} items</TableCell>
-                      <TableCell className="text-slate-900 font-semibold">Rs. {(quotation.total || quotation.total_estimate || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-slate-900 font-semibold">LKR {(quotation.total || quotation.total_estimate || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(quotation.status)} style={{ textTransform: 'capitalize' }}>
                           {getStatusIcon(quotation.status)}
@@ -450,8 +450,8 @@ export function ViewQuotations() {
                         {item.description && <div className="text-xs text-slate-500 mt-0.5">{item.description}</div>}
                       </TableCell>
                       <TableCell className="text-slate-900">{item.quantity} {item.unit || ''}</TableCell>
-                      <TableCell className="text-slate-900">Rs. {price.toLocaleString()}</TableCell>
-                      <TableCell className="text-slate-900 font-bold text-right">Rs. {total.toLocaleString()}</TableCell>
+                      <TableCell className="text-slate-900">LKR {price.toLocaleString()}</TableCell>
+<td className="text-slate-900 font-bold text-right">LKR {total.toLocaleString()}</td>
                     </TableRow>
                   )})}
                 </TableBody>
@@ -463,17 +463,17 @@ export function ViewQuotations() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Subtotal:</span>
-                    <span className="text-slate-900 font-medium">Rs. {(selectedQuotation.subtotal || selectedQuotation.total || selectedQuotation.total_estimate || 0).toLocaleString()}</span>
+                    <span className="text-slate-900 font-medium">LKR {(selectedQuotation.subtotal || selectedQuotation.total || selectedQuotation.total_estimate || 0).toLocaleString()}</span>
                   </div>
                   {selectedQuotation.tax_amount !== undefined && selectedQuotation.tax_amount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Tax:</span>
-                    <span className="text-slate-900">Rs. {selectedQuotation.tax_amount.toLocaleString()}</span>
+                    <span className="text-slate-900">LKR {selectedQuotation.tax_amount.toLocaleString()}</span>
                   </div>
                   )}
                   <div className="border-t-2 border-blue-200 pt-2 flex justify-between">
                     <span className="text-blue-900 font-bold">Total:</span>
-                    <span className="text-blue-900 font-bold text-lg">Rs. {(selectedQuotation.total || selectedQuotation.total_estimate || 0).toLocaleString()}</span>
+                    <span className="text-blue-900 font-bold text-lg">LKR {(selectedQuotation.total || selectedQuotation.total_estimate || 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>

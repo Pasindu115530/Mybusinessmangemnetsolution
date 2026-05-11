@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import {
-  DollarSign,
+  CreditCard,
   Search,
   Plus,
   TrendingUp,
@@ -66,6 +66,7 @@ interface Transaction {
   status: PaymentStatus;
   notes?: string;
   receiptUrl?: string;
+  isFinanceLinked?: boolean;
 }
 
 interface BankAccount {
@@ -124,6 +125,7 @@ const mapTransactionFromBackend = (item: any): Transaction => ({
   status: item.status || 'pending',
   notes: item.notes || '',
   receiptUrl: item.receiptUrl || item.receipt_url || '',
+  isFinanceLinked: item.isFinanceLinked || false,
 });
 
 const initialForm = {
@@ -336,15 +338,15 @@ export function PaymentsTransactions() {
 
   const cashInHand = useMemo(() => {
     const cashCustomer = transactions
-      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'customer')
+      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'customer' && !t.isFinanceLinked)
       .reduce((sum, t) => sum + t.amount, 0);
-
+  
     const cashSupplier = transactions
-      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'supplier')
+      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'supplier' && !t.isFinanceLinked)
       .reduce((sum, t) => sum + t.amount, 0);
-
+  
     const cashExpense = transactions
-      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'expense')
+      .filter((t) => t.status === 'completed' && t.paymentMethod === 'cash' && t.type === 'expense' && !t.isFinanceLinked)
       .reduce((sum, t) => sum + t.amount, 0);
 
     const financeCashIn = financeTransactions
@@ -376,7 +378,8 @@ export function PaymentsTransactions() {
           t.status === 'completed' &&
           t.paymentMethod === 'bank' &&
           t.type === 'customer' &&
-          t.bankAccountId === bankId
+          t.bankAccountId === bankId &&
+          !t.isFinanceLinked
       )
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -386,7 +389,8 @@ export function PaymentsTransactions() {
           t.status === 'completed' &&
           t.paymentMethod === 'bank' &&
           (t.type === 'expense' || t.type === 'supplier') &&
-          t.bankAccountId === bankId
+          t.bankAccountId === bankId &&
+          !t.isFinanceLinked
       )
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -547,7 +551,7 @@ export function PaymentsTransactions() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="w-5 h-5" />
+                    <CreditCard className="w-5 h-5" />
                     <span className="text-emerald-100">Finance Management</span>
                   </div>
                   <h1 className="text-3xl mb-2">Payments & Transactions</h1>
@@ -580,7 +584,7 @@ export function PaymentsTransactions() {
                 </Badge>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Total Expenses</h3>
-              <p className="text-2xl text-slate-900">${totalExpenses.toLocaleString()}</p>
+              <p className="text-2xl text-slate-900">LKR {totalExpenses.toLocaleString()}</p>
             </CardContent>
           </Card>
 
@@ -596,7 +600,7 @@ export function PaymentsTransactions() {
                 </Badge>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Supplier Payments</h3>
-              <p className="text-2xl text-slate-900">${totalSupplierPayments.toLocaleString()}</p>
+              <p className="text-2xl text-slate-900">LKR {totalSupplierPayments.toLocaleString()}</p>
             </CardContent>
           </Card>
 
@@ -612,7 +616,7 @@ export function PaymentsTransactions() {
                 </Badge>
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Customer Income</h3>
-              <p className="text-2xl text-slate-900">${totalCustomerIncome.toLocaleString()}</p>
+              <p className="text-2xl text-slate-900">LKR {totalCustomerIncome.toLocaleString()}</p>
             </CardContent>
           </Card>
 
@@ -625,7 +629,7 @@ export function PaymentsTransactions() {
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Cash In Hand</h3>
               <p className={`${cashInHand >= 0 ? 'text-green-600' : 'text-red-600'} text-2xl`}>
-                ${Math.abs(cashInHand).toLocaleString()}
+                LKR {Math.abs(cashInHand).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -643,7 +647,7 @@ export function PaymentsTransactions() {
               </div>
               <h3 className="text-sm text-slate-600 mb-1">Total Bank Balance</h3>
               <p className={`${totalBankBalance >= 0 ? 'text-green-600' : 'text-red-600'} text-2xl`}>
-                ${Math.abs(totalBankBalance).toLocaleString()}
+                LKR {Math.abs(totalBankBalance).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -667,7 +671,7 @@ export function PaymentsTransactions() {
                       <h3 className="text-lg text-slate-900">{bank.account_name}</h3>
                       <p className="text-sm text-slate-600">{bank.account_number}</p>
                       <p className="mt-3 text-2xl text-emerald-700">
-                        ${getBankBalance(bankId).toLocaleString()}
+                        LKR {getBankBalance(bankId).toLocaleString()}
                       </p>
                     </div>
                   );
@@ -760,7 +764,7 @@ export function PaymentsTransactions() {
                         <TableCell className="text-slate-900">{txn.category}</TableCell>
                         <TableCell className="text-slate-900">{txn.relatedEntity}</TableCell>
                         <TableCell className={txn.type === 'customer' ? 'text-green-600' : 'text-red-600'}>
-                          {txn.type === 'customer' ? '+' : '-'}${txn.amount.toLocaleString()}
+                          {txn.type === 'customer' ? '+' : '-'}LKR {txn.amount.toLocaleString()}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 text-slate-700">

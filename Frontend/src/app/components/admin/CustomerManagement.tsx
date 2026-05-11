@@ -48,7 +48,7 @@ export function CustomerManagement() {
               <CheckCircle className="w-4 h-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl text-slate-900">${customers.reduce((sum, c) => sum + c.totalSpent, 0).toLocaleString()}</div>
+              <div className="text-2xl text-slate-900">LKR {customers.reduce((sum, c) => sum + c.totalSpent, 0).toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -86,7 +86,7 @@ export function CustomerManagement() {
                     <TableCell className="text-slate-900">{customer.name}</TableCell>
                     <TableCell className="text-slate-600">{customer.email}</TableCell>
                     <TableCell className="text-slate-900">{customer.orders}</TableCell>
-                    <TableCell className="text-slate-900">${customer.totalSpent.toLocaleString()}</TableCell>
+                    <TableCell className="text-slate-900">LKR {customer.totalSpent.toLocaleString()}</TableCell>
                     <TableCell className="text-slate-600">{customer.lastOrder}</TableCell>
                     <TableCell>
                       <Badge variant={customer.status === 'active' ? 'default' : 'outline'} className={

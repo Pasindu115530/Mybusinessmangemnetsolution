@@ -8,7 +8,7 @@ import {
   ShoppingCart,
   Truck,
   Receipt,
-  DollarSign,
+  Banknote,
   LogOut
 } from 'lucide-react';
 
@@ -25,7 +25,7 @@ const navigation = [
   { name: 'Customer Orders', href: '/supplier/orders', icon: ShoppingCart },
   { name: 'Delivery & Dispatch', href: '/supplier/delivery', icon: Truck },
   { name: 'Invoice Submission', href: '/supplier/invoices', icon: Receipt },
-  { name: 'Payment Status', href: '/supplier/payments', icon: DollarSign },
+  { name: 'Payment Status', href: '/supplier/payments', icon: Banknote },
 ];
 
 

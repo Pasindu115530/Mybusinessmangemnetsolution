@@ -17,7 +17,7 @@ import {
   FileText,
   CheckCircle,
   X,
-  DollarSign,
+  Banknote,
   Save,
   Send,
   AlertCircle,
@@ -42,7 +42,7 @@ export function CustomerPayment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [selectedInvoiceID, setSelectedInvoiceID] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('online');
+  const [paymentMethod, setPaymentMethod] = useState('bank');
   const [transactionId, setTransactionId] = useState('');
   const [notes, setNotes] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -197,7 +197,8 @@ export function CustomerPayment() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="online">Online Bank Transfer</SelectItem>
+                        <SelectItem value="bank">Bank Transfer / Online</SelectItem>
+                        <SelectItem value="cash">Cash in Hand</SelectItem>
                         <SelectItem value="cheque">Cheque Deposit</SelectItem>
                         <SelectItem value="other">Other Method</SelectItem>
                       </SelectContent>
@@ -205,15 +206,41 @@ export function CustomerPayment() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-slate-700 font-bold">Transaction/Reference ID</Label>
+                    <Label className="text-slate-700 font-bold">
+                      {paymentMethod === 'cash' ? 'Reference (Optional)' : 'Transaction/Reference ID'}
+                    </Label>
                     <Input
-                      placeholder="e.g. TXN123456789"
+                      placeholder={paymentMethod === 'cash' ? "e.g. Cash handed to [Name]" : "e.g. TXN123456789"}
                       value={transactionId}
                       onChange={(e) => setTransactionId(e.target.value)}
                       className="border-slate-200 h-12"
                     />
                   </div>
                 </div>
+
+                {paymentMethod === 'bank' && (
+                  <Card className="bg-blue-50 border-blue-200 shadow-none border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Banknote className="w-5 h-5 text-blue-600 mt-1" />
+                        <div className="space-y-2">
+                          <p className="font-bold text-blue-900">Company Bank Details</p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <span className="text-blue-600">Bank:</span>
+                            <span className="font-semibold text-blue-900">Bank of Ceylon</span>
+                            <span className="text-blue-600">Branch:</span>
+                            <span className="font-semibold text-blue-900">Colombo 07</span>
+                            <span className="text-blue-600">Account Name:</span>
+                            <span className="font-semibold text-blue-900 uppercase">Business Management Solution (PVT) LTD</span>
+                            <span className="text-blue-600 font-bold">Account No:</span>
+                            <span className="font-black text-blue-900 text-lg">1234567890</span>
+                          </div>
+                          <p className="text-xs text-blue-500 mt-2 italic">* Please use Invoice ID as payment reference</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-slate-700 font-bold">Notes</Label>
@@ -312,7 +339,7 @@ export function CustomerPayment() {
                 
                 <Button 
                   className="w-full bg-blue-600 hover:bg-blue-700 h-14 text-lg font-bold shadow-xl"
-                  disabled={!selectedInvoiceID || !transactionId || !uploadedFile || isSubmitting}
+                  disabled={!selectedInvoiceID || (paymentMethod !== 'cash' && !transactionId) || !uploadedFile || isSubmitting}
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? (

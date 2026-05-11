@@ -42,7 +42,9 @@ export function CustomerOrders() {
 
   const userDataString = localStorage.getItem('user');
   const userData = userDataString ? JSON.parse(userDataString) : null;
-  const customID = userData?.id || userData?._id || localStorage.getItem('customID');
+  // Prioritize customID (the business ID), then id/_id (MongoDB ID)
+  const customID = localStorage.getItem('customID') || userData?.customID || userData?.id || userData?._id;
+  const userEmail = userData?.email || localStorage.getItem('userEmail');
 
   const [stats, setStats] = useState({
     pending: 0,
@@ -59,17 +61,25 @@ export function CustomerOrders() {
       setLoading(true);
       
       // 1. Fetch Orders (ID eka anuwa filter karala ganna)
-      const ordersRes = await axios.get(`http://localhost:5900/api/orders/customer/${customID}`);
+      // Pass customID if available, else email
+      const fetchId = customID || userEmail;
+      if (!fetchId) {
+        setLoading(false);
+        return;
+      }
+      
+      const ordersRes = await axios.get(`http://localhost:5900/api/orders/customer/${fetchId}`);
       setOrders(ordersRes.data);
-      console.log(ordersRes.data);
+      console.log("Orders fetched:", ordersRes.data);
 
       // 2. Fetch Stats using customID
+      const fetchIdStats = customID || userEmail;
       const [pending, processing, dispatched, inTransit, delivered] = await Promise.all([
-        axios.get(`http://localhost:5900/api/orders/pending-count/${customID}`),
-        axios.get(`http://localhost:5900/api/orders/processing-count/${customID}`),
-        axios.get(`http://localhost:5900/api/orders/dispatched-count/${customID}`),
-        axios.get(`http://localhost:5900/api/orders/in-transit-count/${customID}`),
-        axios.get(`http://localhost:5900/api/orders/delivered-count/${customID}`),
+        axios.get(`http://localhost:5900/api/orders/pending-count/${fetchIdStats}`),
+        axios.get(`http://localhost:5900/api/orders/processing-count/${fetchIdStats}`),
+        axios.get(`http://localhost:5900/api/orders/dispatched-count/${fetchIdStats}`),
+        axios.get(`http://localhost:5900/api/orders/in-transit-count/${fetchIdStats}`),
+        axios.get(`http://localhost:5900/api/orders/delivered-count/${fetchIdStats}`),
       ]);
 
       setStats({
@@ -201,32 +211,40 @@ export function CustomerOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order) => (
-                    <TableRow key={order._id} className="group">
-                      <TableCell className="pl-6 font-semibold">{order.orderID}</TableCell>
-                      <TableCell className="text-slate-500">{order.quotationRef}</TableCell>
-                      <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
-                      <TableCell className="font-medium">LKR {order.totalAmount.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusColor(order.status)}>
-                          {getStatusIcon(order.status)}
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-6">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => {
-                            setSelectedOrderData(order);
-                            setShowDetailsModal(true);
-                          }}
-                        >
-                          <Eye className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
-                        </Button>
+                  {filteredOrders.length > 0 ? (
+                    filteredOrders.map((order) => (
+                      <TableRow key={order._id} className="group">
+                        <TableCell className="pl-6 font-semibold">{order.orderID}</TableCell>
+                        <TableCell className="text-slate-500">{order.quotationRef}</TableCell>
+                        <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-medium">LKR {order.totalAmount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getStatusColor(order.status)}>
+                            {getStatusIcon(order.status)}
+                            {order.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedOrderData(order);
+                              setShowDetailsModal(true);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                        No orders found.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             )}

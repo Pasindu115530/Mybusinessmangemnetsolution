@@ -22,7 +22,7 @@ import {
   AlertCircle,
   Calendar,
   Package,
-  DollarSign,
+  Banknote,
   ArrowRight,
   History,
   RefreshCw

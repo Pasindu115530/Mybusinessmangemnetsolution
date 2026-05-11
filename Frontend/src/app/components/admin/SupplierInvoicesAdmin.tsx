@@ -7,6 +7,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import {
   Receipt,
@@ -53,6 +55,9 @@ export function SupplierInvoicesAdmin() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('bank');
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState<string>('');
 
   const getAuthHeader = () => {
     const token = localStorage.getItem('token');
@@ -73,7 +78,21 @@ export function SupplierInvoicesAdmin() {
     }
   };
 
-  useEffect(() => { fetchInvoices(); }, []);
+  const fetchBankAccounts = async () => {
+    try {
+      const res = await axios.get('http://localhost:5900/api/bankAccounts/getBankAccounts', { headers: getAuthHeader() });
+      const accounts = Array.isArray(res.data) ? res.data : (res.data.bankAccounts || []);
+      setBankAccounts(accounts);
+      if (accounts.length > 0) setSelectedBankId(accounts[0]._id || accounts[0].id);
+    } catch (err) {
+      console.error('Error fetching bank accounts:', err);
+    }
+  };
+
+  useEffect(() => { 
+    fetchInvoices(); 
+    fetchBankAccounts();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -88,8 +107,17 @@ export function SupplierInvoicesAdmin() {
     try {
       setIsProcessing(true);
       const headers = getAuthHeader();
-      await axios.put(`http://localhost:5900/api/supplier-invoices/accept-payment/${id}`, {}, { headers });
-      toast.success('Invoice marked as paid — supplier will receive payment confirmation');
+      
+      const selectedBank = bankAccounts.find(b => (b._id || b.id) === selectedBankId);
+      
+      const payload = {
+        paymentMethod,
+        bankAccountId: paymentMethod === 'bank' ? selectedBankId : null,
+        bankAccountName: paymentMethod === 'bank' && selectedBank ? `${selectedBank.bank_name} - ${selectedBank.account_number}` : ''
+      };
+
+      await axios.put(`http://localhost:5900/api/supplier-invoices/accept-payment/${id}`, payload, { headers });
+      toast.success('Invoice marked as paid — finance records updated');
       fetchInvoices();
       setShowInvoiceModal(false);
     } catch (err) {
@@ -246,23 +274,56 @@ export function SupplierInvoicesAdmin() {
               </DialogTitle>
               <div className="flex gap-2">
                 {selectedInvoice?.payment_status === 'unpaid' && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
-                      onClick={() => handleReject(selectedInvoice._id)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <X className="w-4 h-4 mr-2" />} Reject
-                    </Button>
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200"
-                      onClick={() => handleAccept(selectedInvoice._id)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Mark as Paid
-                    </Button>
-                  </>
+                  <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200 mr-4">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Method</Label>
+                      <Select value={paymentMethod} onValueChange={(val: any) => setPaymentMethod(val)}>
+                        <SelectTrigger className="w-32 h-9 border-0 bg-transparent font-bold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bank">Bank</SelectItem>
+                          <SelectItem value="cash">Cash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {paymentMethod === 'bank' && (
+                      <div className="flex flex-col gap-1 min-w-[200px] border-l pl-4">
+                        <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Bank Account</Label>
+                        <Select value={selectedBankId} onValueChange={setSelectedBankId}>
+                          <SelectTrigger className="h-9 border-0 bg-transparent font-bold">
+                            <SelectValue placeholder="Select account" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bankAccounts.map(acc => (
+                              <SelectItem key={acc._id || acc.id} value={acc._id || acc.id}>
+                                {acc.bank_name} - {acc.account_number}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
+                    <div className="border-l pl-4 flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="border-red-200 text-red-600 hover:bg-red-50 font-bold h-9"
+                        onClick={() => handleReject(selectedInvoice._id)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <X className="w-4 h-4 mr-2" />} Reject
+                      </Button>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 h-9"
+                        onClick={() => handleAccept(selectedInvoice._id)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Mark as Paid
+                      </Button>
+                    </div>
+                  </div>
                 )}
                 <Button variant="outline" onClick={() => window.print()} className="border-slate-200">
                   <Printer className="w-4 h-4 mr-2" /> Print

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import {
   Wallet,
   Landmark,
-  DollarSign,
+  Banknote,
   ArrowUpRight,
   ArrowDownRight,
   Plus,
@@ -399,13 +399,15 @@ export function FinanceManagement() {
       .filter((t) => t.type === 'bank_withdraw' && t.bankAccountId === bankId)
       .reduce((sum, t) => sum + t.amount, 0);
 
+    // To avoid double-counting, we ignore paymentTransactions that have corresponding Finance entries.
     const paymentCustomerIncome = paymentTransactions
       .filter(
         (t) =>
           (t.status === 'completed' || t.status === undefined) &&
           (t.paymentMethod === 'bank' || t.payment_method === 'bank') &&
           t.type === 'customer' &&
-          (t.bankAccountId === bankId || t.bank_account_id === bankId)
+          (t.bankAccountId === bankId || t.bank_account_id === bankId) &&
+          !t.isFinanceLinked
       )
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
@@ -415,7 +417,8 @@ export function FinanceManagement() {
           (t.status === 'completed' || t.status === undefined) &&
           (t.paymentMethod === 'bank' || t.payment_method === 'bank') &&
           (t.type === 'expense' || t.type === 'supplier') &&
-          (t.bankAccountId === bankId || t.bank_account_id === bankId)
+          (t.bankAccountId === bankId || t.bank_account_id === bankId) &&
+          !t.isFinanceLinked
       )
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
@@ -467,15 +470,15 @@ export function FinanceManagement() {
       .reduce((sum, t) => sum + t.amount, 0);
 
     const paymentCashCustomer = paymentTransactions
-      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && t.type === 'customer')
+      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && t.type === 'customer' && !t.isFinanceLinked)
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
       
     const paymentCashSupplier = paymentTransactions
-      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && (t.type === 'supplier'))
+      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && (t.type === 'supplier') && !t.isFinanceLinked)
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
     const paymentCashExpense = paymentTransactions
-      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && (t.type === 'expense'))
+      .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && (t.type === 'expense') && !t.isFinanceLinked)
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
     return cashIn + bankWithdraw - cashOut - bankDeposit + paymentCashCustomer - paymentCashSupplier - paymentCashExpense;
@@ -509,13 +512,13 @@ export function FinanceManagement() {
     }
   };
 
-  const getAmountClass = (type: FundType) => {
-    if (type === 'cash_out' || type === 'bank_deposit') return 'text-red-600';
+  const getAmountClass = (type: string) => {
+    if (type === 'cash_out' || type === 'bank_withdraw') return 'text-red-600';
     return 'text-green-600';
   };
 
-  const getAmountPrefix = (type: FundType) => {
-    if (type === 'cash_out' || type === 'bank_deposit') return '-';
+  const getAmountPrefix = (type: string) => {
+    if (type === 'cash_out' || type === 'bank_withdraw') return '-';
     return '+';
   };
 
@@ -543,11 +546,11 @@ export function FinanceManagement() {
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm text-blue-700">Total Funds</CardTitle>
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
-                <DollarSign className="w-6 h-6 text-white" />
+                <Banknote className="w-6 h-6 text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-blue-900">${totalFunds.toLocaleString()}</div>
+              <div className="text-3xl text-blue-900">LKR {totalFunds.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -559,7 +562,7 @@ export function FinanceManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-orange-900">${totalLoans.toLocaleString()}</div>
+              <div className="text-3xl text-orange-900">LKR {totalLoans.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -571,7 +574,7 @@ export function FinanceManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-green-900">${cashInHand.toLocaleString()}</div>
+              <div className="text-3xl text-green-900">LKR {cashInHand.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -583,7 +586,7 @@ export function FinanceManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-sky-900">${totalBankBalance.toLocaleString()}</div>
+              <div className="text-3xl text-sky-900">LKR {totalBankBalance.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -591,11 +594,11 @@ export function FinanceManagement() {
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm text-purple-700">Available Funds</CardTitle>
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                <DollarSign className="w-6 h-6 text-white" />
+                <Banknote className="w-6 h-6 text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-purple-900">${availableFunds.toLocaleString()}</div>
+              <div className="text-3xl text-purple-900">LKR {availableFunds.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
@@ -742,7 +745,7 @@ export function FinanceManagement() {
                         <div className="mt-4 p-3 rounded-lg bg-sky-50 border border-sky-100">
                           <p className="text-xs text-sky-700 mb-1">Current Balance</p>
                           <p className="text-2xl font-semibold text-sky-900">
-                            ${balance.toLocaleString()}
+                            LKR {balance.toLocaleString()}
                           </p>
                         </div>
 
@@ -909,12 +912,12 @@ export function FinanceManagement() {
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          entry.type === 'cash_out' || entry.type === 'bank_deposit'
+                          entry.type === 'cash_out' || entry.type === 'bank_withdraw'
                             ? 'bg-gradient-to-br from-red-100 to-orange-100'
                             : 'bg-gradient-to-br from-green-100 to-emerald-100'
                         }`}
                       >
-                        {entry.type === 'cash_out' || entry.type === 'bank_deposit' ? (
+                        {entry.type === 'cash_out' || entry.type === 'bank_withdraw' ? (
                           <ArrowDownRight className="w-5 h-5 text-red-600" />
                         ) : (
                           <ArrowUpRight className="w-5 h-5 text-green-600" />
@@ -1010,7 +1013,7 @@ export function FinanceManagement() {
                         </TableCell>
                         <TableCell>{transaction.bankAccountName || '-'}</TableCell>
                         <TableCell className={getAmountClass(transaction.type)}>
-                          {getAmountPrefix(transaction.type)}$
+                          {getAmountPrefix(transaction.type)}LKR
                           {transaction.amount.toLocaleString()}
                         </TableCell>
                         <TableCell>{transaction.notes || '-'}</TableCell>

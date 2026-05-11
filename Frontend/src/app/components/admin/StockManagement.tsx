@@ -18,7 +18,10 @@ import {
   AlertCircle,
   Package,
   TrendingUp,
-  ArrowUpRight
+  ArrowUpRight,
+  FileDown,
+  Upload,
+  Loader2
 } from 'lucide-react';
 
 type StockItem = {
@@ -90,6 +93,7 @@ export function StockManagement() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   const [newItem, setNewItem] = useState<StockItem>(initialNewItem);
 
@@ -221,6 +225,47 @@ export function StockManagement() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      window.open(`${API_BASE}/downloadTemplate`, '_blank');
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      alert('Failed to download template.');
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setUploadLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/uploadExcel`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to upload file');
+      }
+
+      alert(data.message || 'Successfully uploaded items');
+      fetchStockItems();
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      setUploadLoading(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
   const getItemStatus = (item: StockItem) => {
     if (item.status) return item.status;
     if (item.quantity <= 0) return 'critical';
@@ -289,6 +334,40 @@ export function StockManagement() {
                   Add Stock Item
                 </Button>
               </DialogTrigger>
+
+              {/* Excel Bulk Actions */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="bg-purple-500/10 border-purple-400/20 text-white hover:bg-purple-500/20"
+                  onClick={handleDownloadTemplate}
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Template
+                </Button>
+                
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    className="hidden"
+                    id="excel-upload"
+                    onChange={handleFileUpload}
+                    disabled={uploadLoading}
+                  />
+                  <Label
+                    htmlFor="excel-upload"
+                    className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-white text-purple-700 hover:bg-purple-50 shadow-lg cursor-pointer ${uploadLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {uploadLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    Upload Excel
+                  </Label>
+                </div>
+              </div>
 
               <DialogContent className="border-0 shadow-2xl max-w-2xl">
                 <DialogHeader>
@@ -471,7 +550,7 @@ export function StockManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl text-blue-900">${totalValue.toLocaleString()}</div>
+              <div className="text-3xl text-blue-900">LKR {totalValue.toLocaleString()}</div>
               <p className="text-sm text-blue-600 mt-2">{stockItems.length} total items</p>
             </CardContent>
           </Card>
@@ -598,8 +677,8 @@ export function StockManagement() {
                             {item.quantity || 0} {item.unit || 'units'}
                           </TableCell>
 
-                          <TableCell className="text-slate-900">${Number(cost).toFixed(2)}</TableCell>
-                          <TableCell className="text-slate-900">${Number(sellingPrice).toFixed(2)}</TableCell>
+                          <TableCell className="text-slate-900">LKR {Number(cost).toFixed(2)}</TableCell>
+                          <TableCell className="text-slate-900">LKR {Number(sellingPrice).toFixed(2)}</TableCell>
 
                           <TableCell>
                             <div className="flex items-center gap-1 text-green-600">

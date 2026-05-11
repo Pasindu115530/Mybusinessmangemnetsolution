@@ -11,7 +11,7 @@ import {
   Package,
   Clock,
   CheckCircle,
-  DollarSign,
+  Banknote,
   Truck,
   FileText,
   Send,
@@ -123,7 +123,7 @@ export function SupplierDashboard() {
             { label: 'New Requirements', value: stats?.newRequirements || 0, icon: FileText, color: 'blue', bg: 'from-blue-50 to-blue-100', text: 'text-blue-600' },
             { label: 'Pending Quotations', value: stats?.pendingQuotations || 0, icon: Clock, color: 'yellow', bg: 'from-yellow-50 to-amber-100', text: 'text-amber-600' },
             { label: 'Active Orders', value: stats?.activeOrders || 0, icon: ShoppingCart, color: 'purple', bg: 'from-purple-50 to-indigo-100', text: 'text-indigo-600' },
-            { label: 'Total Revenue', value: `LKR ${(stats?.totalRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green', bg: 'from-green-50 to-emerald-100', text: 'text-emerald-600' },
+            { label: 'Total Revenue', value: `LKR ${(stats?.totalRevenue || 0).toLocaleString()}`, icon: Banknote, color: 'green', bg: 'from-green-50 to-green-100', text: 'text-emerald-600' },
           ].map((stat) => (
             <Card key={stat.label} className="modern-card border-0 shadow-modern-lg overflow-hidden group hover:-translate-y-1 transition-all duration-300">
               <CardContent className="pt-6 relative">
@@ -291,7 +291,7 @@ export function SupplierDashboard() {
           <CardHeader className="bg-slate-50/80 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-green-600" />
+                <Banknote className="w-4 h-4 text-green-600" />
                 Pending Payments
               </CardTitle>
               <Link to="/supplier/payments">

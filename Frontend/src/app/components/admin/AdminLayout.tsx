@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard,
   Package,
-  DollarSign,
+  Banknote,
   CreditCard,
   Users,
   Truck,
@@ -35,7 +35,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Stock Management', href: '/stock', icon: Package },
-  { name: 'Finance & Funds', href: '/finance', icon: DollarSign },
+  { name: 'Finance & Funds', href: '/finance', icon: Banknote },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   {
     name: 'Customers',

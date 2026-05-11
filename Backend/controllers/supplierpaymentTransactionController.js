@@ -29,7 +29,11 @@ const getBankBalance = async (bankAccountId) => {
 export const getSupplierPayments = async (req, res) => {
     try {
         const payments = await SupplierPaymentTransaction.find().sort({ date: -1 });
-        res.status(200).json({ success: true, count: payments.length, payments });
+        const mapped = payments.map(p => ({
+            ...p.toObject(),
+            amount: parseDecimal(p.amount)
+        }));
+        res.status(200).json({ success: true, count: mapped.length, payments: mapped });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch payments', error: error.message });
     }
@@ -128,7 +132,12 @@ export const getSupplierPaymentsByEmail = async (req, res) => {
     try {
         const supplierEmail = req.user.email;
         const payments = await SupplierPaymentTransaction.find({ supplierEmail }).sort({ date: -1 });
-        res.status(200).json({ success: true, payments });
+        const mapped = payments.map(p => ({
+            ...p.toObject(),
+            id: p._id,
+            amount: parseDecimal(p.amount)
+        }));
+        res.status(200).json({ success: true, payments: mapped });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch payments', error: error.message });
     }

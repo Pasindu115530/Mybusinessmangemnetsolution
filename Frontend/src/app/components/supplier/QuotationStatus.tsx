@@ -22,7 +22,7 @@ import {
   RefreshCw,
   Package,
   Calendar,
-  DollarSign
+  Banknote
 } from 'lucide-react';
 
 interface QuotationItem {

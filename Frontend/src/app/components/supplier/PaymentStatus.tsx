@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { toast } from 'sonner';
 import {
-  DollarSign,
+  Wallet,
   Search,
   Eye,
   CheckCircle,
@@ -31,8 +31,8 @@ import {
 interface Payment {
   id: string;
   transaction_id: string;
-  po_id: string | null;
-  invoiceId: string | null;
+  purchaseOrderRef: string | null;
+  billRef: string | null;
   amount: number;
   paymentMethod: string;
   status: string;
@@ -124,8 +124,8 @@ export function PaymentStatus() {
     const q = searchQuery.toLowerCase();
     return (
       (p.transaction_id || '').toLowerCase().includes(q) ||
-      (p.po_id || '').toLowerCase().includes(q) ||
-      (p.invoiceId || '').toLowerCase().includes(q)
+      (p.purchaseOrderRef || '').toLowerCase().includes(q) ||
+      (p.billRef || '').toLowerCase().includes(q)
     );
   });
 
@@ -138,7 +138,7 @@ export function PaymentStatus() {
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-32 -mb-32" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-5 h-5" />
+              <Wallet className="w-5 h-5" />
               <span className="text-green-100 uppercase tracking-wider text-xs font-bold font-mono">Revenue & Tracking</span>
             </div>
             <h1 className="text-3xl mb-2 font-black">Payment Status</h1>
@@ -241,8 +241,8 @@ export function PaymentStatus() {
                         </TableCell>
                         <TableCell className="py-4">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-900">{p.invoiceId || 'N/A'}</span>
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">{p.po_id || 'Direct'}</span>
+                            <span className="text-xs font-bold text-slate-900">{p.billRef || 'N/A'}</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">{p.purchaseOrderRef || 'Direct'}</span>
                           </div>
                         </TableCell>
                         <TableCell className="py-4">
@@ -285,7 +285,7 @@ export function PaymentStatus() {
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <DialogTitle className="text-xl font-black flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-green-400" />
+                  <Wallet className="w-5 h-5 text-green-400" />
                   Payment Receipt
                 </DialogTitle>
                 <Badge className={`${getStatusColor(selectedPayment?.status || '')} border-0`}>
@@ -300,8 +300,8 @@ export function PaymentStatus() {
               <div className="grid grid-cols-2 gap-6 p-6 bg-slate-50 rounded-2xl border border-slate-100">
                 {[
                   { label: 'Transaction ID', value: selectedPayment.transaction_id || '—', icon: FileText },
-                  { label: 'Invoice / Bill', value: selectedPayment.invoiceId || '—', icon: Receipt },
-                  { label: 'Order Ref', value: selectedPayment.po_id || '—', icon: Package },
+                  { label: 'Invoice / Bill', value: selectedPayment.billRef || '—', icon: Receipt },
+                  { label: 'Order Ref', value: selectedPayment.purchaseOrderRef || '—', icon: Package },
                   { label: 'Settlement Date', value: new Date(selectedPayment.date).toLocaleDateString(), icon: Calendar },
                   { label: 'Method', value: selectedPayment.paymentMethod, icon: CreditCard },
                 ].map((row, i) => (
