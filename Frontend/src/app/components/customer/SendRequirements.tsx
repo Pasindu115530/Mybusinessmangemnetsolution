@@ -41,6 +41,8 @@ export function SendRequirements() {
   const [stats, setStats] = useState({ total: 0, received: 0, pending: 0, rejected: 0 });
   const [availableStocks, setAvailableStocks] = useState<any[]>([]);
   const [stocksLoading, setStocksLoading] = useState(true);
+  const [selectedRequirement, setSelectedRequirement] = useState<any>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
 
   const getCustomerId = () => {
     const userStr = localStorage.getItem('user');
@@ -111,6 +113,20 @@ export function SendRequirements() {
       setUploadedFiles([]);
       fetchData();
     } catch (error) { alert("Failed to submit."); } finally { setLoading(false); }
+  };
+
+  const handleView = (req: any) => {
+    setSelectedRequirement(req);
+    setShowViewModal(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-50 text-amber-600 border-amber-100';
+      case 'rejected': return 'bg-red-50 text-red-600 border-red-200';
+      case 'quoted': return 'bg-teal-50 text-teal-700 border-teal-100';
+      default: return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+    }
   };
 
   return (
@@ -363,7 +379,12 @@ export function SendRequirements() {
                       )}
                     </TableCell>
                     <TableCell className="text-right pr-8">
-                      <Button variant="ghost" size="icon" className="rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                        onClick={() => handleView(req)}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -386,6 +407,78 @@ export function SendRequirements() {
           <Button className="w-full py-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold" onClick={() => setShowSuccessModal(false)}>
             Return to Dashboard
           </Button>
+        </DialogContent>
+      </Dialog>
+      {/* --- VIEW DIALOG --- */}
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent className="sm:max-w-[600px] rounded-[30px] p-0 overflow-hidden border-none shadow-2xl">
+          {selectedRequirement && (
+            <>
+              <div className="bg-slate-900 p-8 text-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold tracking-tight">{selectedRequirement.requirementId}</h2>
+                      <p className="text-xs text-slate-400">Submitted on {new Date(selectedRequirement.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusColor(selectedRequirement.status)}`}>
+                    {selectedRequirement.status}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requested Items</h4>
+                  <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
+                    {selectedRequirement.items.map((item: any, idx: number) => (
+                      <div key={idx} className="p-4 bg-slate-50/30 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div>
+                          <p className="font-bold text-slate-900">{item.itemName}</p>
+                          <p className="text-[10px] text-slate-500">Deadline: {item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-blue-600">{item.quantity}</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold">{item.unit || 'Units'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedRequirement.attachedDocument && (
+                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                        <Upload className="h-4 w-4" />
+                      </div>
+                      <p className="text-sm font-bold text-blue-900">Attached Document</p>
+                    </div>
+                    <Button variant="link" className="text-blue-600 font-bold text-xs" onClick={() => window.open(`http://localhost:5900/${selectedRequirement.attachedDocument.replace(/\\/g, '/')}`, '_blank')}>
+                      Download File
+                    </Button>
+                  </div>
+                )}
+
+                {selectedRequirement.status === 'rejected' && selectedRequirement.rejectReason && (
+                  <div className="p-4 rounded-2xl bg-red-50 border border-red-100">
+                    <p className="text-[10px] font-black uppercase text-red-400 mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700 italic">{selectedRequirement.rejectReason}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <Button className="rounded-xl bg-slate-900 hover:bg-slate-800 px-8" onClick={() => setShowViewModal(false)}>
+                  Close Details
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </CustomerLayout>
