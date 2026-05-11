@@ -105,6 +105,7 @@ export const acceptPayment = async (req, res) => {
         invoice.payment_status = "paid";
         if (paymentMethod) invoice.paymentMethod = paymentMethod;
         if (bankAccountId) invoice.bankAccountId = bankAccountId;
+        if (bankAccountName) invoice.bankAccountName = bankAccountName;
         if (notes) invoice.notes = notes;
 
         await invoice.save();
@@ -112,7 +113,13 @@ export const acceptPayment = async (req, res) => {
         const txnId = invoice.transactionID || `TXN-${Date.now()}`;
 
         // 1. Create Payment Transaction (for Payments & Transactions page)
-        const finalMethod = paymentMethod || invoice.paymentMethod || 'bank';
+        // Normalize method for enum: ["cash", "bank", "cheque", "other"]
+        let finalMethod = (paymentMethod || invoice.paymentMethod || 'bank').toLowerCase();
+        if (finalMethod.includes('cash')) finalMethod = 'cash';
+        else if (finalMethod.includes('bank') || finalMethod.includes('online') || finalMethod.includes('transfer')) finalMethod = 'bank';
+        else if (finalMethod.includes('cheque')) finalMethod = 'cheque';
+        else finalMethod = 'other';
+
         await PaymentTransaction.create({
             transaction_id: txnId,
             type: 'customer',
@@ -130,7 +137,7 @@ export const acceptPayment = async (req, res) => {
         });
 
         // 2. Create Finance Entry (for Finance Management main page)
-        const financeTxnType = finalMethod === 'cash' ? 'cash_in' : 'bank_deposit';
+        const financeTxnType = 'income';
         
         await Finance.create({
             transaction_type: financeTxnType,
@@ -142,9 +149,10 @@ export const acceptPayment = async (req, res) => {
             bankAccountName: bankAccountName || ''
         });
 
-        res.json({ message: "Payment accepted successfully and recorded in finance", invoice });
+        res.json({ success: true, message: "Payment accepted successfully and recorded in finance", invoice });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("Accept payment error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

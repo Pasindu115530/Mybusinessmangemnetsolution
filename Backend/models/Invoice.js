@@ -103,8 +103,16 @@ const invoiceSchema = new mongoose.Schema({
         totalPrice: { type: Number, default: 0  },
       },
     ],
-
-});
+    bankAccountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BankAccount",
+      default: null,
+    },
+    bankAccountName: {
+      type: String,
+      default: "",
+    },
+}, { timestamps: true });
 
 // Auto-generate bill_id for supplier bills
 invoiceSchema.pre("save", async function (next) {

@@ -242,14 +242,14 @@ export const getCustomerDashboardStats = async (req, res) => {
             ...recentInvoices.map(inv => ({
                 type: 'payment',
                 message: `Invoice ${inv.invoiceID} is ${inv.payment_status}`,
-                time: formatDate(inv.createdAt),
+                time: formatDate(inv.createdAt || inv.date),
                 color: inv.payment_status === 'paid' ? 'green' : 'red',
                 icon: 'Banknote'
             })),
             ...recentOrders.map(o => ({
                 type: 'order',
                 message: `Order ${o.orderID} is ${o.status}`,
-                time: formatDate(o.createdAt),
+                time: formatDate(o.createdAt || o.date),
                 color: 'blue',
                 icon: 'Package'
             }))
@@ -298,10 +298,16 @@ export const getCustomerDashboardStats = async (req, res) => {
 };
 
 function formatDate(date) {
+    if (!date) return 'Some time ago';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Some time ago';
+    
     const now = new Date();
-    const diff = now.getTime() - new Date(date).getTime();
+    const diff = now.getTime() - d.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
+    
     if (hours < 1) return 'Just now';
     if (hours < 24) return `${hours} hours ago`;
-    return `${Math.floor(hours / 24)} days ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} ${days === 1 ? 'day' : 'days'} ago`;
 }

@@ -4,7 +4,7 @@ const financeSchema = new mongoose.Schema(
   {
     transaction_type: {
       type: String,
-      enum: ['fund', 'loan', 'cash_in', 'cash_out', 'bank_deposit', 'bank_withdraw'],
+      enum: ['fund', 'loan', 'cash_in', 'cash_out', 'bank_deposit', 'bank_withdraw', 'income', 'expense'],
       required: true,
       trim: true,
     },

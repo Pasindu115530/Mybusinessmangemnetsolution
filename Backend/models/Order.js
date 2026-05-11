@@ -172,7 +172,7 @@ const orderSchema = new mongoose.Schema({
         default: false
     }
 
-})
+}, { timestamps: true });
 
 // Auto-generate po_id for purchase orders
 orderSchema.pre("save", async function (next) {

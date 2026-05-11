@@ -28,7 +28,9 @@ type FundType =
   | 'cash_in'
   | 'cash_out'
   | 'bank_deposit'
-  | 'bank_withdraw';
+  | 'bank_withdraw'
+  | 'income'
+  | 'expense';
 
 interface FundTransaction {
   _id?: string;
@@ -171,7 +173,7 @@ export function FinanceManagement() {
       const mappedItems = itemsArray.map(mapFromBackend);
 
       const filtered = mappedItems.filter((item) =>
-        ['fund', 'loan', 'cash_in', 'cash_out', 'bank_deposit', 'bank_withdraw'].includes(item.type)
+        ['fund', 'loan', 'cash_in', 'cash_out', 'bank_deposit', 'bank_withdraw', 'income', 'expense'].includes(item.type)
       );
 
       setTransactions(filtered);
@@ -396,7 +398,11 @@ export function FinanceManagement() {
       .reduce((sum, t) => sum + t.amount, 0);
 
     const withdrawals = transactions
-      .filter((t) => t.type === 'bank_withdraw' && t.bankAccountId === bankId)
+      .filter((t) => (t.type === 'bank_withdraw' || t.type === 'expense') && t.bankAccountId === bankId)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const externalIncome = transactions
+      .filter((t) => t.type === 'income' && t.bankAccountId === bankId)
       .reduce((sum, t) => sum + t.amount, 0);
 
     // To avoid double-counting, we ignore paymentTransactions that have corresponding Finance entries.
@@ -422,7 +428,7 @@ export function FinanceManagement() {
       )
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
-    return openingBalance + deposits - withdrawals + paymentCustomerIncome - paymentExpenses;
+    return openingBalance + deposits - withdrawals + externalIncome + paymentCustomerIncome - paymentExpenses;
   };
 
   const filteredTransactions = transactions.filter((transaction) => {
@@ -469,6 +475,14 @@ export function FinanceManagement() {
       .filter((t) => t.type === 'bank_deposit')
       .reduce((sum, t) => sum + t.amount, 0);
 
+    const incomeToCash = transactions
+      .filter((t) => t.type === 'income' && !t.bankAccountId)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const expenseFromCash = transactions
+      .filter((t) => t.type === 'expense' && !t.bankAccountId)
+      .reduce((sum, t) => sum + t.amount, 0);
+
     const paymentCashCustomer = paymentTransactions
       .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && t.type === 'customer' && !t.isFinanceLinked)
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
@@ -481,7 +495,7 @@ export function FinanceManagement() {
       .filter((t) => (t.status === 'completed' || t.status === undefined) && (t.paymentMethod === 'cash' || t.payment_method === 'cash') && (t.type === 'expense') && !t.isFinanceLinked)
       .reduce((sum, t) => sum + parseNumber(t.amount), 0);
 
-    return cashIn + bankWithdraw - cashOut - bankDeposit + paymentCashCustomer - paymentCashSupplier - paymentCashExpense;
+    return cashIn + bankWithdraw + incomeToCash - cashOut - bankDeposit - expenseFromCash + paymentCashCustomer - paymentCashSupplier - paymentCashExpense;
   }, [transactions, paymentTransactions]);
 
   const totalBankBalance = useMemo(() => {
@@ -508,15 +522,17 @@ export function FinanceManagement() {
         return 'Transfer: Cash to Bank';
       case 'bank_withdraw':
         return 'Transfer: Bank to Cash';
+      case 'income':
+        return 'Sales / Income';
+      case 'expense':
+        return 'Business Expense';
       default:
         return type;
     }
   };
 
   const getAmountClass = (type: string) => {
-    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit') {
-      // bank_deposit is red for Cash (it leaves cash) but the total net stays same
-      // but in the transaction list, we show it relative to the primary account
+    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit' || type === 'expense') {
       if (type === 'bank_deposit') return 'text-orange-600'; 
       return 'text-red-600';
     }
@@ -524,7 +540,7 @@ export function FinanceManagement() {
   };
 
   const getAmountPrefix = (type: string) => {
-    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit') return '-';
+    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit' || type === 'expense') return '-';
     return '+';
   };
 
@@ -806,6 +822,8 @@ export function FinanceManagement() {
                       <SelectItem value="cash_out">Manual Cash Out</SelectItem>
                       <SelectItem value="bank_deposit">Transfer: Cash to Bank</SelectItem>
                       <SelectItem value="bank_withdraw">Transfer: Bank to Cash</SelectItem>
+                      <SelectItem value="income">External Income</SelectItem>
+                      <SelectItem value="expense">External Expense</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -985,6 +1003,8 @@ export function FinanceManagement() {
                   <SelectItem value="cash_out">Cash Out</SelectItem>
                   <SelectItem value="bank_deposit">Deposit To Bank</SelectItem>
                   <SelectItem value="bank_withdraw">Withdraw From Bank</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
                 </SelectContent>
               </Select>
             </div>
