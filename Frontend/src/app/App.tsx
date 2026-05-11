@@ -50,7 +50,7 @@ import { CustomerOrders } from './components/customer/CustomerOrders';
 import { DeliveryTracking } from './components/customer/DeliveryTracking';
 import { CustomerInvoices } from './components/customer/CustomerInvoices';
 import { CustomerPayment } from './components/customer/CustomerPayment';
-import { OrderConfirmation } from './components/customer/OrderConfirmation';
+
 
 export type UserRole = 'admin' | 'supplier' | 'customer';
 
@@ -125,7 +125,7 @@ export default function App() {
             <Route path="/customer/delivery-tracking" element={<DeliveryTracking />} />
             <Route path="/customer/invoices" element={<CustomerInvoices />} />
             <Route path="/customer/payments" element={<CustomerPayment />} />
-            <Route path="/customer/order-confirmation" element={<OrderConfirmation />} />
+            {/* <Route path="/customer/order-confirmation" element={<OrderConfirmation />} /> */}
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -17,11 +17,11 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
-import { 
-  Banknote, 
-  TrendingUp, 
-  TrendingDown, 
-  Package, 
+import {
+  Banknote,
+  TrendingUp,
+  TrendingDown,
+  Package,
   AlertTriangle,
   Clock,
   ArrowUpRight,
@@ -72,47 +72,47 @@ export function AdminDashboard() {
   }, []);
 
   const kpis = [
-    { 
-      label: 'Total Revenue', 
-      value: stats ? `LKR ${stats.totalRevenue.toLocaleString()}` : 'LKR 0', 
-      change: '+12.5%', 
-      trend: 'up', 
-      icon: Banknote, 
+    {
+      label: 'Total Revenue',
+      value: stats ? `LKR ${stats.totalRevenue.toLocaleString()}` : 'LKR 0',
+      change: '+12.5%',
+      trend: 'up',
+      icon: Banknote,
       color: 'green',
       description: 'vs last month'
     },
-    { 
-      label: 'Total Profit', 
-      value: stats ? `LKR ${stats.totalProfit.toLocaleString()}` : 'LKR 0', 
-      change: '+8.2%', 
-      trend: 'up', 
-      icon: TrendingUp, 
+    {
+      label: 'Total Profit',
+      value: stats ? `LKR ${stats.totalProfit.toLocaleString()}` : 'LKR 0',
+      change: '+8.2%',
+      trend: 'up',
+      icon: TrendingUp,
       color: 'blue',
       description: 'vs last month'
     },
-    { 
-      label: 'Total Expenses', 
-      value: stats ? `LKR ${stats.totalExpenses.toLocaleString()}` : 'LKR 0', 
-      change: '-3.1%', 
-      trend: 'down', 
-      icon: TrendingDown, 
+    {
+      label: 'Total Expenses',
+      value: stats ? `LKR ${stats.totalExpenses.toLocaleString()}` : 'LKR 0',
+      change: '-3.1%',
+      trend: 'down',
+      icon: TrendingDown,
       color: 'purple',
       description: 'vs last month'
     },
-    { 
-      label: 'Low Stock Alerts', 
-      value: stats ? stats.lowStockAlerts.toString() : '0', 
-      change: '', 
-      trend: 'alert', 
-      icon: AlertTriangle, 
+    {
+      label: 'Low Stock Alerts',
+      value: stats ? stats.lowStockAlerts.toString() : '0',
+      change: '',
+      trend: 'alert',
+      icon: AlertTriangle,
       color: 'red',
       description: 'items need restock'
     },
   ];
 
   const pendingRequests = [
-    { label: 'Pending Customer Requests', value: stats ? stats.pendingCustomerRequests.toString() : '0', icon: Users, color: 'blue', link: '/admin/customer-requests' },
-    { label: 'Pending Supplier Requests', value: stats ? stats.pendingSupplierRequests.toString() : '0', icon: Truck, color: 'green', link: '/admin/supplier-requests' },
+    { label: 'Pending Customer Requests', value: stats ? stats.pendingCustomerRequests.toString() : '0', icon: Users, color: 'blue', link: '/customer-requests' },
+    { label: 'Pending Supplier Requests', value: stats ? stats.pendingSupplierRequests.toString() : '0', icon: Truck, color: 'green', link: '/purchase-orders' },
   ];
 
   const getStatusColor = (status: string) => {
@@ -168,11 +168,11 @@ export function AdminDashboard() {
                       </div>
                       {kpi.change && (
                         <Badge className={
-                          kpi.trend === 'up' 
+                          kpi.trend === 'up'
                             ? 'bg-green-100 text-green-700 border-green-200'
                             : kpi.trend === 'down'
-                            ? 'bg-blue-100 text-blue-700 border-blue-200'
-                            : 'bg-red-100 text-red-700 border-red-200'
+                              ? 'bg-blue-100 text-blue-700 border-blue-200'
+                              : 'bg-red-100 text-red-700 border-red-200'
                         }>
                           {kpi.change}
                         </Badge>
@@ -226,20 +226,20 @@ export function AdminDashboard() {
                     <LineChart data={stats?.salesTrend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `LKR ${val/1000}K`} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `LKR ${val / 1000}K`} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
                           border: 'none',
                           borderRadius: '12px',
                           color: 'white'
                         }}
                         itemStyle={{ color: '#3b82f6' }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="#3b82f6" 
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#3b82f6"
                         strokeWidth={4}
                         dot={{ fill: '#3b82f6', r: 6, strokeWidth: 2, stroke: '#fff' }}
                         activeDot={{ r: 8 }}
@@ -274,9 +274,9 @@ export function AdminDashboard() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
                           border: 'none',
                           borderRadius: '12px',
                           color: 'white'

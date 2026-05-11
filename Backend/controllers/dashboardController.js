@@ -4,6 +4,8 @@ import Requirement from '../models/Requirement.js';
 import SupplierOrder from '../models/supplierOrder.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import SupplierPaymentTransaction from '../models/supplierPaymentTransaction.js';
+import Invoice from '../models/Invoice.js';
+import Order from '../models/Order.js';
 import mongoose from 'mongoose';
 
 export const getAdminDashboardStats = async (req, res) => {
@@ -37,6 +39,20 @@ export const getAdminDashboardStats = async (req, res) => {
         const totalRevenue = (revenueFinance[0]?.total || 0) + (revenuePayments[0]?.total || 0);
         const totalExpenses = (expensesFinance[0]?.total || 0) + (expensesPayments[0]?.total || 0) + (expensesSupplierPayments[0]?.total || 0);
         const totalProfit = totalRevenue - totalExpenses;
+
+        const [customerDueRes, supplierDueRes] = await Promise.all([
+            Invoice.aggregate([
+                { $match: { invoiceType: 'customer', payment_status: { $in: ['unpaid', 'overdue'] } } },
+                { $group: { _id: null, total: { $sum: "$total" } } }
+            ]),
+            Invoice.aggregate([
+                { $match: { invoiceType: 'supplier', payment_status: { $in: ['unpaid', 'overdue'] } } },
+                { $group: { _id: null, total: { $sum: "$total" } } }
+            ])
+        ]);
+
+        const customerDue = customerDueRes[0]?.total || 0;
+        const supplierDue = supplierDueRes[0]?.total || 0;
 
         // 2. Low Stock Alerts - threshold set to 10
         const stockItems = await StockItem.find();
@@ -176,6 +192,8 @@ export const getAdminDashboardStats = async (req, res) => {
                 totalRevenue,
                 totalExpenses,
                 totalProfit,
+                customerDue,
+                supplierDue,
                 lowStockAlerts,
                 pendingCustomerRequests,
                 pendingSupplierRequests,
@@ -189,6 +207,92 @@ export const getAdminDashboardStats = async (req, res) => {
 
     } catch (error) {
         console.error('Dashboard Stats Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getCustomerDashboardStats = async (req, res) => {
+    try {
+        const email = req.user.email.toLowerCase();
+
+        // 1. Orders
+        const [activeOrders, deliveredOrders] = await Promise.all([
+            Order.countDocuments({ email, status: { $in: ['confirmed', 'processing', 'dispatched', 'in-transit'] } }),
+            Order.countDocuments({ email, status: 'delivered' })
+        ]);
+
+        // 2. Quotations
+        const pendingQuotationsCount = await Requirement.countDocuments({ email, status: 'quoted' });
+        const pendingQuotations = await Requirement.find({ email, status: 'quoted' }).sort({ updatedAt: -1 }).limit(3);
+
+        // 3. Due Payments (Invoices)
+        const duePaymentRes = await Invoice.aggregate([
+            { $match: { email, invoiceType: 'customer', payment_status: { $in: ['unpaid', 'overdue'] } } },
+            { $group: { _id: null, total: { $sum: "$total" } } }
+        ]);
+        const duePayment = duePaymentRes[0]?.total || 0;
+
+        // 4. Recent Orders
+        const recentOrders = await Order.find({ email }).sort({ createdAt: -1 }).limit(3);
+
+        // 5. Recent Activity (Invoices, Orders)
+        const recentInvoices = await Invoice.find({ email }).sort({ createdAt: -1 }).limit(2);
+        
+        const activities = [
+            ...recentInvoices.map(inv => ({
+                type: 'payment',
+                message: `Invoice ${inv.invoiceID} is ${inv.payment_status}`,
+                time: formatDate(inv.createdAt),
+                color: inv.payment_status === 'paid' ? 'green' : 'red',
+                icon: 'Banknote'
+            })),
+            ...recentOrders.map(o => ({
+                type: 'order',
+                message: `Order ${o.orderID} is ${o.status}`,
+                time: formatDate(o.createdAt),
+                color: 'blue',
+                icon: 'Package'
+            }))
+        ].slice(0, 4);
+
+        // 6. Pending Invoices (Unpaid/Overdue)
+        const pendingInvoices = await Invoice.find({ 
+            email, 
+            invoiceType: 'customer', 
+            payment_status: { $in: ['unpaid', 'overdue'] } 
+        }).sort({ date: -1 });
+
+        res.status(200).json({
+            success: true,
+            stats: {
+                activeOrders,
+                pendingQuotationsCount,
+                deliveredOrders,
+                duePayment,
+                recentOrders: recentOrders.map(o => ({
+                    id: o.orderID,
+                    items: o.items.length,
+                    amount: o.total,
+                    status: o.status,
+                    date: o.date.toISOString().split('T')[0]
+                })),
+                pendingQuotations: pendingQuotations.map(q => ({
+                    id: q.requirementID || `REQ-${q._id.toString().slice(-6)}`,
+                    reqRef: q.requirementID,
+                    amount: q.budget || 0,
+                    expiryDate: q.deadline ? q.deadline.toISOString().split('T')[0] : 'N/A'
+                })),
+                pendingInvoices: pendingInvoices.map(inv => ({
+                    id: inv.invoiceID || inv.bill_id,
+                    orderRef: inv.orderID,
+                    amount: inv.total,
+                    dueDate: inv.due_date ? inv.due_date.toISOString().split('T')[0] : inv.date.toISOString().split('T')[0],
+                    status: inv.payment_status
+                })),
+                recentActivity: activities
+            }
+        });
+    } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };

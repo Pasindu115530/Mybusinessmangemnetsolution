@@ -24,7 +24,6 @@ const navigation = [
   { name: 'Delivery Tracking', href: '/customer/delivery-tracking', icon: Truck },
   { name: 'Invoices', href: '/customer/invoices', icon: Receipt },
   { name: 'Payments', href: '/customer/payments', icon: CreditCard },
-  { name: 'Order Confirmation', href: '/customer/order-confirmation', icon: CheckCircle },
 ];
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
