@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import SupplierPaymentTransaction from '../models/supplierPaymentTransaction.js';
 import BankAccount from '../models/BankAccount.js';
+import Finance from '../models/finance.js';
 
 const parseDecimal = (value) => {
     if (value == null) return 0;
@@ -106,7 +107,20 @@ export const addSupplierPayment = async (req, res) => {
             receiptUrl: receiptUrl || ''
         });
 
-        res.status(201).json({ success: true, message: 'Supplier payment recorded', payment });
+        // Create Finance Entry for dashboard/ledger
+        if ((status || 'completed') === 'completed') {
+            await Finance.create({
+                transaction_type: paymentMethod === 'cash' ? 'cash_out' : 'bank_withdraw',
+                amount: numericAmount,
+                description: `Supplier Payment: ${relatedEntity} (${billRef || 'Direct'})`,
+                date: date || new Date(),
+                notes: notes || "",
+                bankAccountId: paymentMethod === "bank" ? bankAccountId : null,
+                bankAccountName: paymentMethod === "bank" ? (bankAccountName || "") : ""
+            });
+        }
+
+        res.status(201).json({ success: true, message: 'Supplier payment recorded and added to finance', payment });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to add payment', error: error.message });
     }
@@ -153,11 +167,11 @@ export const getSupplierPaymentStats = async (req, res) => {
         const [receivedAmountRes, pendingAmountRes, totalPayments, failedPayments] = await Promise.all([
             SupplierPaymentTransaction.aggregate([
                 { $match: { supplierEmail, status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+                { $group: { _id: null, total: { $sum: { $toDouble: '$amount' } } } }
             ]),
             SupplierPaymentTransaction.aggregate([
                 { $match: { supplierEmail, status: 'pending' } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+                { $group: { _id: null, total: { $sum: { $toDouble: '$amount' } } } }
             ]),
             SupplierPaymentTransaction.countDocuments({ supplierEmail }),
             SupplierPaymentTransaction.countDocuments({ supplierEmail, status: 'failed' })

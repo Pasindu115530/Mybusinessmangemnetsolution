@@ -81,6 +81,10 @@ const supplierPaymentTransactionSchema = new mongoose.Schema(
         receiptUrl: {
             type: String,
             default: ''
+        },
+        isFinanceLinked: {
+            type: Boolean,
+            default: false
         }
     },
     { timestamps: true }
