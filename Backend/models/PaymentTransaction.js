@@ -28,8 +28,12 @@ const paymentTransactionSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["cash", "bank"],
+      enum: ["cash", "bank", "cheque", "other"],
       required: true,
+    },
+    isFinanceLinked: {
+      type: Boolean,
+      default: false,
     },
     bankAccountId: {
       type: mongoose.Schema.Types.ObjectId,

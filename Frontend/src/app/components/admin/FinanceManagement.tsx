@@ -454,7 +454,7 @@ export function FinanceManagement() {
 
   const cashInHand = useMemo(() => {
     const cashIn = transactions
-      .filter((t) => t.type === 'cash_in')
+      .filter((t) => (t.type === 'cash_in' || ((t.type === 'fund' || t.type === 'loan') && !t.bankAccountId)))
       .reduce((sum, t) => sum + t.amount, 0);
 
     const cashOut = transactions
@@ -489,36 +489,42 @@ export function FinanceManagement() {
       const bankId = bank._id || bank.id || '';
       return sum + getBankBalance(bankId);
     }, 0);
-  }, [bankAccounts, transactions]);
+  }, [bankAccounts, transactions, paymentTransactions]);
 
-  const availableFunds = totalFunds + totalLoans + cashInHand + totalBankBalance;
+  // availableFunds is simply the sum of all liquid assets
+  const availableFunds = cashInHand + totalBankBalance;
 
   const getTypeLabel = (type: FundType) => {
     switch (type) {
       case 'fund':
-        return 'Fund';
+        return 'Investment/Fund';
       case 'loan':
-        return 'Loan';
+        return 'Loan Entry';
       case 'cash_in':
-        return 'Cash In';
+        return 'Manual Cash In';
       case 'cash_out':
-        return 'Cash Out';
+        return 'Manual Cash Out';
       case 'bank_deposit':
-        return 'Bank Deposit';
+        return 'Transfer: Cash to Bank';
       case 'bank_withdraw':
-        return 'Bank Withdraw';
+        return 'Transfer: Bank to Cash';
       default:
         return type;
     }
   };
 
   const getAmountClass = (type: string) => {
-    if (type === 'cash_out' || type === 'bank_withdraw') return 'text-red-600';
+    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit') {
+      // bank_deposit is red for Cash (it leaves cash) but the total net stays same
+      // but in the transaction list, we show it relative to the primary account
+      if (type === 'bank_deposit') return 'text-orange-600'; 
+      return 'text-red-600';
+    }
     return 'text-green-600';
   };
 
   const getAmountPrefix = (type: string) => {
-    if (type === 'cash_out' || type === 'bank_withdraw') return '-';
+    if (type === 'cash_out' || type === 'bank_withdraw' || type === 'bank_deposit') return '-';
     return '+';
   };
 
@@ -794,12 +800,12 @@ export function FinanceManagement() {
                       <SelectValue placeholder="Select type..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fund">Fund</SelectItem>
-                      <SelectItem value="loan">Loan</SelectItem>
-                      <SelectItem value="cash_in">Cash In</SelectItem>
-                      <SelectItem value="cash_out">Cash Out</SelectItem>
-                      <SelectItem value="bank_deposit">Deposit To Bank</SelectItem>
-                      <SelectItem value="bank_withdraw">Withdraw From Bank</SelectItem>
+                      <SelectItem value="fund">Investment / Fund</SelectItem>
+                      <SelectItem value="loan">Loan Entry</SelectItem>
+                      <SelectItem value="cash_in">Manual Cash In</SelectItem>
+                      <SelectItem value="cash_out">Manual Cash Out</SelectItem>
+                      <SelectItem value="bank_deposit">Transfer: Cash to Bank</SelectItem>
+                      <SelectItem value="bank_withdraw">Transfer: Bank to Cash</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

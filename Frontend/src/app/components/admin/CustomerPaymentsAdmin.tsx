@@ -41,6 +41,8 @@ export function CustomerPaymentsAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
 
   const fetchPayments = async () => {
     try {
@@ -58,13 +60,38 @@ export function CustomerPaymentsAdmin() {
     }
   };
 
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await axios.get('http://localhost:5900/api/bankAccounts/getBankAccounts');
+      const accounts = response.data.bankAccounts || [];
+      setBankAccounts(accounts);
+      if (accounts.length > 0) {
+        setSelectedBankAccountId(accounts[0]._id);
+      }
+    } catch (err) {
+      console.error("Error fetching bank accounts:", err);
+    }
+  };
+
   useEffect(() => {
     fetchPayments();
+    fetchBankAccounts();
   }, []);
 
   const handleAcceptPayment = async (id: string) => {
+    const isCash = selectedInvoice?.paymentMethod?.toLowerCase() === 'cash';
+    if (!isCash && !selectedBankAccountId) {
+      toast.error("Please select a bank account for this deposit");
+      return;
+    }
+
     try {
-      await axios.put(`http://localhost:5900/api/invoices/accept-payment/${id}`);
+      const selectedBank = bankAccounts.find(b => b._id === selectedBankAccountId);
+      await axios.put(`http://localhost:5900/api/invoices/accept-payment/${id}`, {
+        paymentMethod: selectedInvoice?.paymentMethod,
+        bankAccountId: isCash ? null : selectedBankAccountId,
+        bankAccountName: isCash ? '' : `${selectedBank?.bank_name} - ${selectedBank?.account_number}`
+      });
       toast.success("Payment accepted successfully");
       fetchPayments();
       setShowModal(false);
@@ -216,21 +243,40 @@ export function CustomerPaymentsAdmin() {
               </DialogTitle>
               <div className="flex gap-2">
                 {selectedInvoice?.status === 'pending-verification' && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
-                      onClick={() => handleRejectPayment(selectedInvoice._id)}
-                    >
-                      <X className="w-4 h-4 mr-2" /> Reject
-                    </Button>
-                    <Button 
-                      className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg"
-                      onClick={() => handleAcceptPayment(selectedInvoice._id)}
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" /> Accept & Finalize
-                    </Button>
-                  </>
+                  <div className="flex flex-col md:flex-row items-end gap-4">
+                    {selectedInvoice?.paymentMethod?.toLowerCase() !== 'cash' && (
+                      <div className="flex flex-col gap-1.5 min-w-[250px]">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Deposit to Bank Account</p>
+                        <select 
+                          className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white"
+                          value={selectedBankAccountId}
+                          onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                        >
+                          <option value="">Select Account...</option>
+                          {bankAccounts.map(bank => (
+                            <option key={bank._id} value={bank._id}>
+                              {bank.bank_name} - {bank.account_number}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="h-10 border-red-200 text-red-600 hover:bg-red-50 font-bold"
+                        onClick={() => handleRejectPayment(selectedInvoice._id)}
+                      >
+                        <X className="w-4 h-4 mr-2" /> Reject
+                      </Button>
+                      <Button 
+                        className="h-10 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg px-6"
+                        onClick={() => handleAcceptPayment(selectedInvoice._id)}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" /> Accept & Finalize
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

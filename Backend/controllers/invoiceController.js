@@ -112,13 +112,14 @@ export const acceptPayment = async (req, res) => {
         const txnId = invoice.transactionID || `TXN-${Date.now()}`;
 
         // 1. Create Payment Transaction (for Payments & Transactions page)
+        const finalMethod = paymentMethod || invoice.paymentMethod || 'bank';
         await PaymentTransaction.create({
             transaction_id: txnId,
             type: 'customer',
             category: 'Invoice Payment',
             relatedEntity: invoice.email,
             amount: invoice.total,
-            paymentMethod: paymentMethod || invoice.paymentMethod || 'bank',
+            paymentMethod: finalMethod,
             bankAccountId: bankAccountId || null,
             bankAccountName: bankAccountName || '',
             date: new Date(),
@@ -129,8 +130,10 @@ export const acceptPayment = async (req, res) => {
         });
 
         // 2. Create Finance Entry (for Finance Management main page)
+        const financeTxnType = finalMethod === 'cash' ? 'cash_in' : 'bank_deposit';
+        
         await Finance.create({
-            transaction_type: (paymentMethod || invoice.paymentMethod) === 'cash' ? 'cash_in' : 'bank_deposit',
+            transaction_type: financeTxnType,
             amount: invoice.total,
             description: `Income from Invoice: ${invoice.invoiceID}`,
             date: new Date(),

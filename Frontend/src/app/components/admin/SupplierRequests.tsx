@@ -25,8 +25,24 @@ import {
   Users,
   XCircle,
   Send,
-  ClipboardList
+  ClipboardList,
+  Check,
+  ChevronsUpDown
 } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "../ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../ui/popover";
+import { cn } from "../ui/utils";
 
 interface RequirementItem {
   itemName: string;
@@ -63,9 +79,16 @@ interface NewItem {
   notes: string;
 }
 
+interface StockItem {
+  _id: string;
+  item_name: string;
+  unit_of_measure: string;
+}
+
 export function SupplierRequests() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -88,12 +111,19 @@ export function SupplierRequests() {
     try {
       setIsLoading(true);
       const headers = getAuthHeader();
-      const [reqRes, supRes] = await Promise.all([
-        axios.get('http://localhost:5900/api/suppliers/supplier-requirements/my', { headers }), // Admin can view all via this endpoint if backend allows
-        axios.get('http://localhost:5900/api/suppliers/all', { headers })
+      const [reqRes, supRes, stockRes] = await Promise.all([
+        axios.get('http://localhost:5900/api/suppliers/supplier-requirements/my', { headers }),
+        axios.get('http://localhost:5900/api/suppliers/all', { headers }),
+        axios.get('http://localhost:5900/api/stocks/getItems', { headers })
       ]);
       setRequirements(reqRes.data.requirements || []);
       setSuppliers(supRes.data.suppliers || []);
+      
+      const stockData = stockRes.data;
+      const stockArray = Array.isArray(stockData) ? stockData :
+                         Array.isArray(stockData.items) ? stockData.items :
+                         Array.isArray(stockData.data) ? stockData.data : [];
+      setStockItems(stockArray);
     } catch (err) {
       console.error('Failed to load requirements:', err);
       toast.error('Failed to load procurement data');
@@ -115,36 +145,154 @@ export function SupplierRequests() {
   };
 
   const handleUpdateItem = (index: number, field: keyof NewItem, value: string) => {
-    const updated = [...newItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setNewItems(updated);
+    setNewItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
   const handleCreateRequirement = async () => {
-    if (!selectedSupplierId) { toast.error("Please select a target supplier"); return; }
-    if (newItems.some(item => !item.itemName || !item.quantity)) { toast.error("Please fill item details"); return; }
+    if (!selectedSupplierId) {
+      toast.error("Please select a target supplier");
+      return;
+    }
+
+    const validatedItems = newItems.filter(item => item.itemName.trim() !== '');
+    if (validatedItems.length === 0) {
+      toast.error("Please add at least one item with a name");
+      return;
+    }
+
+    if (validatedItems.some(item => !item.quantity || isNaN(parseFloat(item.quantity)) || parseFloat(item.quantity) <= 0)) {
+      toast.error("Please enter a valid quantity (> 0) for all items");
+      return;
+    }
 
     setIsCreating(true);
     try {
+      console.log("Broadcasting payload:", {
+        supplierId: selectedSupplierId,
+        itemsCount: validatedItems.length
+      });
+
       const payload = {
         supplierId: selectedSupplierId,
-        items: newItems.map(item => ({
-          ...item,
-          quantity: parseFloat(item.quantity)
-        }))
+        items: validatedItems.map(item => {
+          const itemPayload: any = {
+            itemName: item.itemName,
+            quantity: parseFloat(item.quantity),
+            unit: item.unit,
+            notes: item.notes
+          };
+          if (item.deliveryDate) {
+            itemPayload.deliveryDate = item.deliveryDate;
+          }
+          return itemPayload;
+        })
       };
 
-      await axios.post('http://localhost:5900/api/suppliers/supplier-requirements', payload, { headers: getAuthHeader() });
-      toast.success("Procurement request sent to supplier");
-      setShowAddModal(false);
-      setSelectedSupplierId('');
-      setNewItems([{ itemName: '', quantity: '', unit: 'units', deliveryDate: '', notes: '' }]);
-      fetchData();
+      const response = await axios.post('http://localhost:5900/api/suppliers/supplier-requirements', payload, { headers: getAuthHeader() });
+      
+      if (response.data.success) {
+        toast.success("Procurement request broadcasted successfully");
+        setShowAddModal(false);
+        setSelectedSupplierId('');
+        setNewItems([{ itemName: '', quantity: '', unit: 'units', deliveryDate: '', notes: '' }]);
+        fetchData();
+      } else {
+        throw new Error(response.data.message || "Failed to send request");
+      }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to send request");
+      console.error("Broadcast Error Detail:", err.response?.data || err);
+      const errorMsg = err.response?.data?.message || err.message || "Failed to send request";
+      toast.error(`Error: ${errorMsg}`);
     } finally {
       setIsCreating(false);
     }
+  };
+
+  // මූලික වෙනස සිදුකළ StockPicker component එක
+  const StockPicker = ({ 
+    value, 
+    onSelect, 
+    stockItems 
+  }: { 
+    value: string, 
+    onSelect: (item: StockItem) => void,
+    stockItems: StockItem[]
+  }) => {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "w-full justify-between h-12 border-slate-200 rounded-xl font-bold bg-slate-50/50 hover:bg-white transition-all",
+              !value && "text-slate-400 font-normal"
+            )}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <Package className={cn("w-4 h-4 shrink-0", value ? "text-indigo-600" : "text-slate-400")} />
+              <span className="truncate">
+                {value
+                  ? stockItems.find((s) => s.item_name === value)?.item_name || value
+                  : "Search stock registry..."}
+              </span>
+            </div>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0" align="start">
+          <Command className="rounded-xl border-none">
+            <CommandInput placeholder="Type item name to search..." className="h-12" />
+            <CommandList className="max-h-[300px]">
+              <CommandEmpty className="py-6 text-center text-slate-500 text-xs italic">
+                No matching stock items discovered.
+              </CommandEmpty>
+              <CommandGroup heading="Available Stock">
+                {stockItems.map((stock) => (
+                  <CommandItem
+                    key={stock._id}
+                    value={stock.item_name}
+                    onSelect={() => {
+                      onSelect(stock);
+                      setTimeout(() => setOpen(false), 10);
+                    }}
+                    onPointerDown={(e) => {
+                      // Prevent focus loss and force selection if onSelect is flaky
+                      e.preventDefault();
+                      onSelect(stock);
+                      setTimeout(() => setOpen(false), 10);
+                    }}
+                    className="py-3 px-4 aria-selected:bg-indigo-50 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full pointer-events-none">
+                      <div className="flex items-center gap-2">
+                        <Check
+                          className={cn(
+                            "h-4 w-4 text-indigo-600",
+                            value === stock.item_name ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <span className="font-bold text-slate-700">{stock.item_name}</span>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-tighter opacity-60">
+                        {stock.unit_of_measure}
+                      </Badge>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -169,7 +317,6 @@ export function SupplierRequests() {
   return (
     <AdminLayout>
       <div className="space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
         <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-10 text-white shadow-2xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -238,12 +385,23 @@ export function SupplierRequests() {
                             </Button>
                           )}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Input 
-                              placeholder="What is required?" 
-                              value={item.itemName}
-                              onChange={(e) => handleUpdateItem(idx, 'itemName', e.target.value)}
-                              className="border-slate-200 h-10 rounded-lg" 
-                            />
+                            <div className="flex flex-col gap-2">
+                              <StockPicker 
+                                value={item.itemName}
+                                stockItems={stockItems}
+                                onSelect={(stock) => {
+                                  handleUpdateItem(idx, 'itemName', stock.item_name);
+                                  // Unit mapping logic
+                                  const unit = stock.unit_of_measure?.toLowerCase();
+                                  let mappedUnit = 'units';
+                                  if (unit?.includes('kg') || unit?.includes('kilogram')) mappedUnit = 'kg';
+                                  else if (unit?.includes('meter') || unit === 'm') mappedUnit = 'm';
+                                  else if (unit?.includes('piece') || unit?.includes('pcs')) mappedUnit = 'pcs';
+                                  
+                                  handleUpdateItem(idx, 'unit', mappedUnit);
+                                }}
+                              />
+                            </div>
                             <div className="flex gap-2">
                               <Input 
                                 type="number" 
@@ -293,7 +451,6 @@ export function SupplierRequests() {
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
