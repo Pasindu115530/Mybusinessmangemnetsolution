@@ -34,6 +34,7 @@ interface Delivery {
   totalAmount: number;
   totalItems: number;
   items: OrderItem[];
+  invoiced: boolean;
 }
 
 export function CustomerDeliveryTracking() {
@@ -241,10 +242,10 @@ export function CustomerDeliveryTracking() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="bg-white">{new Date(order.orderDate).toLocaleDateString()}</Badge>
-                          {!hasPendingRestock && (
+                          {!hasPendingRestock && !order.invoiced && (
                             <Button 
                               size="sm" 
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md rounded-xl transition-all"
                               onClick={() => handleCreateInvoice(order)}
                             >
                               <Receipt className="w-4 h-4 mr-2" />
@@ -372,15 +373,17 @@ export function CustomerDeliveryTracking() {
                         <TableCell>
                           <div className="flex gap-2">
                             {delivery.status.toLowerCase() === 'delivered' ? (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleCreateInvoice(delivery)}
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                              >
-                                <Receipt className="w-4 h-4 mr-2" />
-                                Create Invoice
-                              </Button>
+                              !delivery.invoiced && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleCreateInvoice(delivery)}
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl transition-all"
+                                >
+                                  <Receipt className="w-4 h-4 mr-2" />
+                                  Create Invoice
+                                </Button>
+                              )
                             ) : (
                               <Button 
                                 variant="outline" 

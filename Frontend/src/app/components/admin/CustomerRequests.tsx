@@ -277,9 +277,15 @@ export function CustomerRequests() {
                         <Button
                           size="sm"
                           onClick={() => navigate('/create-quotation', { state: { requirement: req } })}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                          disabled={req.status !== 'pending'}
+                          className={`rounded-xl transition-all ${
+                            req.status === 'pending' 
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md' 
+                            : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
+                          }`}
                         >
-                          <FilePlus className="h-4 w-4 mr-1" /> Create Quotation
+                          <FilePlus className="h-4 w-4 mr-1" /> 
+                          {req.status === 'pending' ? 'Create Quotation' : 'Already Quoted'}
                         </Button>
                       )}
                     </div>

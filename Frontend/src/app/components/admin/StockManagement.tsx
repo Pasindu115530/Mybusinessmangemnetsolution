@@ -269,7 +269,7 @@ export function StockManagement() {
   const getItemStatus = (item: StockItem) => {
     if (item.status) return item.status;
     if (item.quantity <= 0) return 'critical';
-    if (item.quantity <= (item.minQuantity || 10)) return 'low';
+    if (item.quantity <= 10) return 'low';
     return 'in-stock';
   };
 
